@@ -1,0 +1,280 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.containerBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 1300px;
+}
+
+.containerBlockImages,
+.containerBlockVideo {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.containerBlockTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.containerBlockTitle span:nth-of-type(1) {
+  font-size: 36px;
+  font-weight: 700;
+}
+
+.containerBlockTitle span:nth-of-type(2) {
+  font-size: 16px;
+  font-weight: 500;
+  border: 1px solid #000000;
+  padding: 18px 42px;
+  border-radius: 10px;
+  transition: all 0.3s ease-in-out;
+  cursor: pointer;
+}
+
+.containerBlockTitle span:nth-of-type(2):hover {
+  color: #fff;
+  background-color: #e62d3c;
+  border: 1px solid #e62d3c;
+}
+
+.containerBlockLine {
+  width: 100%;
+  border-top: 1px solid #e62d3c;
+  margin-top: 32px;
+}
+
+.containerBlockImagesArr,
+.containerBlockVideosArr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+  gap: 25px;
+  margin-top: 64px;
+}
+
+.containerBlockVideo {
+  margin-top: 84px;
+}
+/* сетки из твоего файла оставь; ниже — только новое */
+
+.card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  cursor: pointer;
+  width: 32%;
+}
+.card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* оверлей с иконкой для фото */
+.cardOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 50%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+  opacity: 0;
+  transition: 0.2s ease;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 8px;
+}
+.card:hover .cardOverlay {
+  opacity: 1;
+}
+.zoomIcon {
+  color: #fff;
+  font-size: 18px;
+}
+
+/* видео */
+.video {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 12px;
+  background: #000;
+}
+
+.videoPlaceholder {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.videoPlaceholder img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.noPoster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #111;
+  color: #bbb;
+  min-height: 160px;
+}
+.playBadge {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border-radius: 999px;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+
+/* Лайтбокс */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.lbInner {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+.lbImage {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  display: block;
+}
+
+.lbClose,
+.lbPrev,
+.lbNext {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lbClose {
+  top: 8px;
+  right: 8px;
+  transform: none;
+}
+.lbPrev {
+  left: -48px;
+}
+.lbNext {
+  right: -48px;
+}
+
+.lbCounter {
+  position: absolute;
+  right: 8px;
+  bottom: -32px;
+  color: #fff;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .container {
+    margin-top: -50px;
+  }
+
+  .containerBlock {
+    padding: 10px;
+  }
+
+  .containerBlockImages,
+  .containerBlockVideo {
+  }
+
+  .containerBlockTitle {
+  }
+
+  .containerBlockTitle span:nth-of-type(1) {
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  .containerBlockTitle span:nth-of-type(2) {
+    font-size: 14px;
+    border: 1px solid #e62d3c;
+    background-color: #e62d3c;
+    color: #fff;
+    padding: 8px 12px;
+  }
+
+  .containerBlockTitle span:nth-of-type(2):hover {
+  }
+
+  .containerBlockLine {
+    margin-top: 16px;
+  }
+
+  .containerBlockImagesArr,
+  .containerBlockVideosArr {
+    gap: 10px;
+    margin-top: 32px;
+  }
+
+  .containerBlockVideo {
+    margin-top: 42px;
+  }
+  /* сетки из твоего файла оставь; ниже — только новое */
+
+  .card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    cursor: pointer;
+    width: 48%;
+  }
+
+  .lbPrev {
+    left: 8px;
+  }
+  .lbNext {
+    right: 8px;
+  }
+  .lbCounter {
+    bottom: 8px;
+  }
+}

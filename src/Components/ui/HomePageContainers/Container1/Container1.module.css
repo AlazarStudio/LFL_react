@@ -1,0 +1,504 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.containerBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background-image: linear-gradient(180deg, #000000 40%, #e62d3c 100%),
+    url('../images/LFLbg.png');
+  background-size: cover;
+  background-position: center;
+  background-blend-mode: multiply; /* ключевая строка */
+}
+
+.containerBlockTop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 1300px;
+  margin-top: 14px;
+  gap: 22px;
+}
+
+.containerBlockTopLogo {
+  width: 241px;
+}
+
+.containerBlockTopTitle {
+  width: 720px;
+}
+
+.containerBlockTopResp {
+  font-size: 37px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.containerBlockTopLink {
+  display: flex;
+  gap: 22px;
+}
+
+.containerBlockTopLink a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 53px;
+  height: 53px;
+  background-color: #e62d3c;
+  border-radius: 10px;
+}
+
+.containerBlockTopLink a:nth-of-type(1) img {
+  width: 24px;
+  height: 21px;
+}
+
+.containerBlockTopLink a:nth-of-type(2) img {
+  width: 28px;
+  height: 14px;
+}
+
+.containerBlockTopLink a:nth-of-type(3) img {
+  width: 21px;
+  height: 21px;
+}
+
+.containerBlockCalendar {
+  display: flex;
+  width: 100%;
+  max-width: 1300px;
+  height: 294px;
+  background-color: #fff;
+  border-radius: 20px;
+  margin-top: 64px;
+  margin-bottom: 54px;
+  position: relative;
+}
+
+.containerBlockCalendarLeft {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 245px;
+  padding: 29px 22px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+}
+
+.containerBlockCalendarLeft span:nth-of-type(1) {
+  display: flex;
+  gap: 12px;
+}
+
+.containerBlockCalendarLeft span:nth-of-type(2) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+  padding: 10px;
+  width: 202px;
+  border-radius: 10px;
+}
+
+.activeTab,
+.buttons span:hover,
+.buttons span:hover {
+  background-color: #e62d3c;
+  color: #fff;
+}
+
+.buttons span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: -15px;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+  padding: 10px;
+  width: 202px;
+  border-radius: 10px;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.nav img {
+  width: 60px;
+  height: 60px;
+  cursor: pointer;
+}
+
+.containerBlockRight {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 1050px;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  padding: 23px 10px;
+}
+
+.slider {
+  display: flex;
+  gap: 22px;
+  transition: transform 0.5s ease-in-out; /* плавный сдвиг */
+  width: 100%;
+  height: 100%;
+}
+
+.matchCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 31%;
+  height: 100%;
+  border: 1px solid #c5c6c6;
+  border-radius: 15px;
+  padding: 15px 10px;
+  flex: 0 0 calc(100% / 3 - 20px); /* 3 карточки на экране */
+  transition: all 0.3s ease-in-out;
+}
+
+.matchDate {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.matchStadium {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 500;
+  color: #000;
+  gap: 12px;
+  height: 18px;
+}
+
+.matchStadium img {
+  height: 18px;
+  object-fit: cover;
+}
+
+.matchScore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font-size: 41px;
+  font-weight: 700;
+  gap: 18px;
+}
+
+.matchScore span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  white-space: nowrap; /* 🔑 запрет переноса */
+}
+
+.matchScore img {
+  width: 80px;
+  height: 80px;
+  border: 1px solid #c5c6c6;
+  border-radius: 5px;
+}
+
+.matchLeague {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.matchRound {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 500;
+  color: #c5c6c6;
+}
+
+@media (max-width: 768px) {
+  .container {
+  }
+
+  .containerBlock {
+    padding: 20px;
+  }
+
+  .containerBlockTop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 100%;
+    margin-top: 4px;
+    gap: 16px;
+  }
+
+  .containerBlockTopLogo {
+    width: 180px;
+  }
+
+  .containerBlockTopTitle {
+    width: 100%;
+  }
+
+  .containerBlockTopResp {
+    text-align: center;
+    font-size: 24px;
+    font-weight: 500;
+    color: #fff;
+  }
+
+  .containerBlockTopLink {
+    display: flex;
+    gap: 16px;
+  }
+
+  .containerBlockTopLink a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background-color: #e62d3c;
+    border-radius: 10px;
+  }
+
+  .containerBlockTopLink a:nth-of-type(1) img {
+    width: 24px;
+    height: 21px;
+  }
+
+  .containerBlockTopLink a:nth-of-type(2) img {
+    width: 28px;
+    height: 14px;
+  }
+
+  .containerBlockTopLink a:nth-of-type(3) img {
+    width: 21px;
+    height: 21px;
+  }
+
+  .containerBlockCalendar {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    height: 394px;
+    background-color: #fff;
+    border-radius: 20px;
+    margin-top: 24px;
+    margin-bottom: 54px;
+    position: relative;
+    font-size: 14px !important;
+  }
+
+  .containerBlockCalendarLeft {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 29px 22px;
+    font-size: 16px;
+    font-weight: 500;
+    gap: 20px;
+  }
+
+  .buttons {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: row;
+    font-size: 14px;
+    gap: 10px;
+  }
+
+  .containerBlockCalendarLeft span:nth-of-type(1) {
+    display: flex;
+    gap: 12px;
+  }
+
+  .containerBlockCalendarLeft span:nth-of-type(1) img {
+    width: 16px;
+  }
+
+  .buttons span:nth-of-type(2) {
+    padding: 0 20px;
+  }
+
+  .containerBlockCalendarLeft span:nth-of-type(2) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease-in-out;
+    padding: 10px;
+    width: auto !important;
+    border-radius: 10px;
+  }
+
+  .activeTab,
+  .containerBlockCalendarLeft span:nth-of-type(3):hover,
+  .containerBlockCalendarLeft span:nth-of-type(2):hover {
+    background-color: #e62d3c;
+    color: #fff;
+  }
+
+  .nav {
+    display: none !important;
+  }
+
+  .containerBlockRight {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 250px;
+    overflow: hidden;
+    position: relative;
+    margin-top: -30px;
+  }
+
+  .slider {
+    display: flex;
+    gap: 0;
+    transition: transform 0.4s ease-in-out; /* плавный сдвиг */
+    width: 100%;
+    height: 100%;
+  }
+
+  .matchCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 184px;
+    background-color: #fff;
+    border-radius: 15px;
+    margin: 0 10px;
+    padding: 15px 10px;
+    flex: 0 0 calc(100% - 20px); /* 3 карточки на экране */
+    transition: all 0.3s ease-in-out;
+  }
+
+  .dots {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    z-index: 111;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    background: #c5c5c5b2;
+    border-radius: 50%;
+    transition: background 0.3s ease;
+  }
+
+  .activeDot {
+    width: 11px;
+    height: 11px;
+    background: #e62d3c;
+  }
+
+  .matchDate {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .matchStadium {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: #b9b9b9;
+    gap: 12px;
+    height: 18px;
+  }
+
+  .matchStadium img {
+    height: 18px;
+    object-fit: cover;
+  }
+
+  .matchScore {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    font-size: 41px;
+    font-weight: 700;
+    gap: 15px;
+  }
+
+  .matchScore span {
+    display: flex;
+    font-size: 20px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+    white-space: nowrap; /* 🔑 запрет переноса */
+  }
+
+  .matchScore img {
+    width: 60px;
+    height: 60px;
+    border: 1px solid #c5c6c6;
+    border-radius: 5px;
+  }
+
+  .matchLeague {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .matchRound {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: #c5c6c6;
+  }
+}

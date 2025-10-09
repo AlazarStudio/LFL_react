@@ -1,0 +1,362 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 1300px;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 10px;
+  margin-top: 68px;
+}
+
+.pageTitle {
+  font-size: 36px;
+  font-weight: 700;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.yearSelect,
+.tabs a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: #000;
+  width: 202px;
+  height: 56px;
+  border-radius: 10px;
+  border: 1px solid #e62d3c;
+  font-size: 16px;
+  font-weight: 600;
+  outline: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+}
+
+.yearSelect:hover,
+.tabs a:hover {
+  background-color: #e62d3c;
+  color: #fff;
+}
+
+.active {
+  color: #fff !important;
+  background-color: #e62d3c;
+}
+
+@media (max-width: 768px) {
+  .container {
+  }
+
+  .block {
+    padding: 10px;
+  }
+
+  .headerRow {
+    flex-direction: column;
+    margin-top: 28px;
+  }
+
+  .pageTitle {
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  .right {
+    width: 100%;
+  }
+
+  .tabs {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .yearSelect,
+  .tabs a {
+    width: 47%;
+  }
+
+  .yearSelect:hover,
+  .tabs a:hover {
+    background-color: #e62d3c;
+    color: #fff;
+  }
+
+  .active {
+    color: #fff !important;
+    background-color: #e62d3c;
+  }
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border-radius: 20px;
+  border: 1px solid #c5c6c6;
+  gap: 60px;
+  margin-top: 32px;
+}
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  margin-top: 52px;
+  padding: 0 30px;
+  gap: 35px;
+}
+
+.searchRow input {
+  padding: 5px 10px;
+  border-radius: 30px;
+  outline: none;
+  width: 562px;
+  height: 50px;
+  border: 1px solid #c5c6c6;
+}
+
+.searchRow button {
+  width: 202px;
+  height: 50px;
+  border: 1px solid #c5c6c6;
+  background-color: inherit;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+  border-radius: 30px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.searchRow button:hover {
+  background-color: #e62d3c;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+}
+
+/* КОМАНДА */
+
+.gridCards {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 20px;
+}
+
+.cardTeam {
+  display: flex;
+  flex-direction: column;
+  height: 382px;
+  width: 32%;
+  border-radius: 20px;
+  border: 1px solid #c5c6c6;
+  cursor: pointer;
+}
+
+.cardTeamImage {
+  height: 260px;
+  width: 100%;
+}
+
+.cardTeam img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 20px 20px 0 0;
+}
+
+.infoBar {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 120px;
+  padding: 10px;
+  gap: 15px;
+}
+
+.cardTeamLogo {
+  width: 50px;
+  height: 50px;
+}
+
+.cardTeamLogo img {
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 768px) {
+}
+
+/* КОМАНДА */
+
+.cardPlayer {
+  display: flex;
+  flex-direction: column;
+  width: 32%;
+  height: 480px;
+  border: 1px solid #c5c6c6;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+.cardPlayerImage {
+  width: 100%;
+  height: 360px;
+}
+
+.cardPlayerImage img {
+  width: 100%;
+  height: 100%;
+  /* object-fit: cover; */
+  border-radius: 20px 20px 0 0;
+  border-bottom: 1px solid #c5c6c6;
+}
+
+@media (max-width: 768px) {
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 20px;
+  gap: 10px;
+}
+
+/* ======= Таблица игроков ======= */
+.tableWrap {
+  width: 100%;
+}
+
+.table {
+  border: 1px solid #eef0f2;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.tr {
+  display: grid;
+  grid-template-columns: 64px 1fr 90px 110px 80px 80px 80px 80px;
+  align-items: center;
+  border-bottom: 1px solid #eef0f2;
+  background: #fff;
+}
+.tr:last-child {
+  border-bottom: none;
+}
+
+.thead {
+  background: #e62d3c; /* красная шапка как на макете */
+  color: #fff;
+  font-weight: 700;
+}
+
+.td {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* колонки */
+.colNum {
+  justify-content: center;
+  font-weight: 700;
+}
+.colPlayer {
+  gap: 12px;
+}
+.colShort {
+  justify-content: center;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 36px;
+}
+.playerMeta {
+  display: grid;
+}
+.playerName {
+  font-weight: 600;
+}
+.playerTeam {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* кликабельность строк */
+.clickable {
+  cursor: pointer;
+}
+.clickable:hover {
+  background: #f9fafb;
+}
+
+/* пагинация (использует твой контейнер) */
+.pagination {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+/* адаптив */
+@media (max-width: 900px) {
+  .tr {
+    grid-template-columns: 50px 1fr 70px 90px 70px 70px 70px 70px;
+  }
+}
+@media (max-width: 720px) {
+  .tr {
+    grid-template-columns: 44px 1fr 64px 80px 64px 64px 64px 64px;
+  }
+  .td {
+    padding: 10px 12px;
+  }
+  .avatar {
+    width: 32px;
+    height: 32px;
+  }
+}
+@media (max-width: 560px) {
+  .tr {
+    grid-template-columns: 40px 1fr 56px 72px 56px 56px 56px 56px;
+  }
+}

@@ -1,0 +1,168 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.containerBlock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 1300px;
+  gap: 20px;
+  height: 957px;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.containerBlockRes {
+  display: flex;
+  flex-direction: column;
+  width: 31%;
+  height: 100%;
+  gap: 40px;
+  /* outline: 1px solid red; */
+}
+
+.containerBlockResTable {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #c5c6c6;
+  height: 100%;
+  border-radius: 20px;
+  padding: 19px 16px;
+  position: relative;
+}
+
+.bottom {
+  display: flex;
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  width: 100%;
+  padding: 0 20px;
+}
+
+.bottom button {
+  width: 100%;
+  height: 57px;
+  border: 1px solid #c5c6c6;
+  background-color: #fff;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.3s ease-in-out;
+}
+
+.bottom button:hover {
+  color: #fff;
+  background-color: #e62d3c;
+  border-color: #e62d3c;
+}
+
+.resultRow {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.resultCenter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dayTitle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  background-color: #e62d3c;
+  width: min-content;
+  padding: 10px;
+  border-radius: 10px;
+  gap: 5px;
+}
+
+.dayBlock {
+  margin-bottom: 14px;
+}
+.dayTitle {
+  font-weight: 800;
+  margin: 8px 0;
+  opacity: 0.9;
+}
+
+.dayMatches {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid #c5c6c6;
+  border-bottom: 1px solid #c5c6c6;
+}
+
+.resultRow {
+  display: grid;
+  grid-template-columns: 40px 1fr auto 1fr; /* время | хозяева | счёт | гости */
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  font-size: 14px;
+}
+.resultRow:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.resTime {
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+.resTeam {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.resScore {
+  font-weight: 800;
+  text-align: center;
+  min-width: 72px;
+}
+
+@media (max-width: 720px) {
+  .resultRow {
+    grid-template-columns: 54px 1fr auto 1fr;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+  .resScore {
+    min-width: 60px;
+  }
+}
+
+.containerBlock img {
+  width: 40px;
+}
+
+.containerBlockStat {
+  width: 31%;
+  height: 100%;
+  outline: 1px solid red;
+}
+
+.containerBlockTab {
+  width: 31%;
+  height: 100%;
+  outline: 1px solid red;
+}

@@ -1,0 +1,775 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.containerBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  position: relative;
+  margin-bottom: 70px;
+}
+
+.water {
+  position: absolute;
+  top: -155px;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.containerBlockInput {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 120px;
+  background-color: rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+
+.containerBlockInput input {
+  display: flex;
+  width: 680px;
+  height: 65px;
+  padding: 20px 30px;
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.1);
+  outline: none;
+  border: none;
+  font-size: 20px;
+  font-weight: 400;
+  border-radius: 30px 0 0 30px;
+  z-index: 1;
+  cursor: pointer;
+}
+
+.containerBlockInput button {
+  background-color: rgba(255, 255, 255, 0.1);
+  height: 65px;
+  width: 125px;
+  border-radius: 0 30px 30px 0;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  z-index: 1;
+}
+
+.containerBlockData {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 2;
+  width: 100%;
+  max-width: 1504px;
+  background: linear-gradient(to bottom, #1b1238 20%, #000000 100%);
+  border-radius: 30px;
+  margin-top: 60px;
+}
+
+.containerBlockDataCat {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 67px 172px;
+  gap: 32px;
+}
+
+.containerBlockDataCatEl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 26px;
+  background-color: rgba(255, 255, 255, 0.1);
+  /* border-radius: 20px; */
+  cursor: pointer;
+  border: 1px solid rgb(255, 255, 255, 0.2);
+  border-radius: 20px;
+  transition: all 0.3s ease-in-out;
+}
+
+.activeCat {
+  box-shadow: 0 0 120px #3302f7;
+}
+
+.containerBlockDataCatEl:hover {
+  box-shadow: 0 0 120px #3302f7;
+}
+
+.containerBlockDataAi {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 0 100px 62px 100px;
+  width: 100%;
+  min-height: 400px;
+  gap: 30px;
+}
+
+.containerBlockDataAiEl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 30%;
+  border-radius: 20px;
+  background-color: rgba(255, 255, 255, 0.1);
+  height: 503px;
+  /* cursor: pointer; */
+}
+
+.containerBlockDataAiEl img {
+  width: 100%;
+  height: 230px;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+  border-radius: 20px 20px 0 0;
+}
+
+.containerBlockDataAiElBottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30px 20px;
+  /* gap: 38px; */
+  position: relative;
+  width: 100%;
+  height: 273px;
+}
+
+.containerBlockDataAiElBottom span:nth-of-type(1) {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.containerBlockDataAiElBottom span:nth-of-type(2) {
+  font-size: 20px;
+  font-weight: 400;
+  text-align: center;
+}
+
+.containerBlockDataAiElBottom button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50%;
+  height: 50px !important;
+  background-color: rgba(255, 255, 255, 0.1);
+  font-size: 20px;
+  font-weight: 400;
+  color: #fff;
+  gap: 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 1;
+  transition: all 0.3s ease-in-out;
+  cursor: pointer;
+}
+
+.containerBlockDataAiElBottom button:hover {
+  border: 1px solid #a800ce;
+  background-color: #a800ce;
+}
+
+.containerBlockDataAiElBottom button img {
+  width: 17px;
+  height: 16px;
+}
+
+.colorBlob {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.9;
+  z-index: 0;
+}
+
+.pagination {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 40px;
+}
+
+.pagination button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  width: 37px;
+  height: 37px;
+  color: white;
+  cursor: pointer;
+  border: none;
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.pagination button:hover,
+.pagination .activePage {
+  background-color: #652ab1;
+  border-radius: 12px;
+  /* border-color: #3f00ff; */
+}
+
+/*МОДАЛКА ================================================================ */
+
+.modalLogo {
+  position: fixed;
+  top: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 250px;
+  height: auto;
+  z-index: 9999;
+  animation: dropDown 0.5s ease-out forwards;
+}
+
+@keyframes dropDown {
+  to {
+    top: 40px;
+  }
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 9998;
+}
+
+.modal {
+  position: fixed;
+  top: 100px;
+  /* bottom: 0; */
+  /* left: 0; */
+  width: 100%;
+  max-width: 1504px;
+  height: 87dvh;
+  min-height: 500px;
+  background: linear-gradient(to bottom, #1b1238 30%, #000000 100%);
+  padding: 30px 20px;
+  z-index: 9999;
+  animation: slideUp 0.4s ease-out;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  border-radius: 20px;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.modalContent {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  max-height: none;
+  overflow: visible;
+  padding: 30px 50px;
+  margin: 0 auto;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.modalContentTop {
+  display: flex;
+  gap: 44px;
+}
+
+.modalContentTop img {
+  width: 100%;
+  max-width: 624px;
+  max-height: 350px;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 20px;
+}
+
+.modalContentTopRight {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.modalContentTopRight span:nth-of-type(1) {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.modalContentTopRight span:nth-of-type(2) {
+  font-size: 20px;
+  font-weight: 400;
+  width: 100%;
+  max-width: 624px;
+  margin-top: 29px;
+}
+
+.modalContentTopRightButtons {
+  display: flex;
+  gap: 32px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+}
+
+.modalContentTopRightButtons button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 207px;
+  height: 57px;
+  font-size: 20px;
+  font-weight: 400;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+}
+
+.modalContentTopRightButtons button:hover {
+  box-shadow: 0 0 120px #3302f7;
+}
+
+.modalContentTopRightButtons .activeTab {
+  box-shadow: 0 0 120px #3302f7;
+}
+
+.modalContentTopRightButtons button img {
+  height: 16px;
+  width: 18px;
+}
+
+.modalClose {
+  position: absolute;
+  top: 12px;
+  right: 20px;
+  background: none;
+  border: none;
+  color: #ffffff33;
+  font-size: 32px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.modalClose:hover {
+  transform: rotate(90deg);
+}
+
+.priceBlock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 50px;
+  gap: 33px;
+  margin-top: 100px;
+}
+
+.priceBlock div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 410px;
+  height: 270px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background-color: rgb(5, 5, 5, 0.5);
+  border-radius: 15px;
+  /* z-index: 1; */
+  position: relative;
+  overflow: visible;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+}
+
+.priceBlock div:hover {
+  background-color: rgba(87, 87, 87, 0.5);
+}
+
+.priceBlock div span:nth-of-type(1) {
+  width: 122px;
+  height: 14px;
+  border-radius: 10px;
+  z-index: -1;
+  top: -7px;
+  position: absolute;
+}
+
+.priceBlock div span:nth-of-type(2) {
+  margin-top: 29px;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.priceBlock div span:nth-of-type(3) {
+  margin-top: 38px;
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.priceBlock div span:nth-of-type(4) {
+  margin-top: 38px;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.detailsBlock {
+  display: flex;
+  width: 100%;
+  margin-top: 80px;
+}
+
+.detailsBlockLeft {
+  display: flex;
+  flex-direction: column;
+  width: 50%;
+  gap: 54px;
+}
+
+.detailsBlockRight {
+  display: flex;
+  flex-direction: column;
+  width: 50%;
+  gap: 54px;
+  padding-left: 4%;
+}
+
+.detailsBlockEl {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.detailsBlockEl span:nth-of-type(1) {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.detailsBlockEl span:nth-of-type(2) {
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 150%;
+}
+
+/*МОДАЛКА ================================================================ */
+
+@media (max-width: 768px) {
+  .containerBlock {
+    margin-bottom: 40px;
+  }
+
+  .water {
+    top: 35px;
+  }
+
+  .containerBlockInput {
+    height: 80px;
+    padding: 10px 30px;
+    margin-top: 30px;
+  }
+
+  .containerBlockInput input {
+    height: 50px;
+    padding: 15px 22px;
+    font-size: 14px;
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .containerBlockInput button {
+    height: 50px;
+    width: 155px;
+  }
+
+  .containerBlockInput img {
+    width: 20px;
+  }
+
+  .containerBlockData {
+  }
+
+  .containerBlockDataCat {
+    flex-wrap: wrap;
+    padding: 25px;
+    gap: 20px 13px;
+  }
+
+  .containerBlockDataCatEl {
+    padding: 0;
+    width: 47%;
+    height: 57px;
+  }
+
+  .containerBlockDataCatEl:hover {
+    box-shadow: 0 0 120px #3302f7;
+  }
+
+  .containerBlockDataAi {
+    flex-direction: column;
+    padding: 28px 25px;
+    gap: 36px;
+  }
+
+  .containerBlockDataAiEl {
+    width: 100%;
+    height: 406px;
+    /* cursor: pointer; */
+  }
+
+  .containerBlockDataAiEl img {
+    height: 186px;
+  }
+
+  .containerBlockDataAiElBottom {
+    padding: 20px 16px;
+    height: 220px;
+  }
+
+  .containerBlockDataAiElBottom span:nth-of-type(1) {
+    font-size: 20px;
+  }
+
+  .containerBlockDataAiElBottom span:nth-of-type(2) {
+    font-size: 16px;
+  }
+
+  .containerBlockDataAiElBottom button {
+    height: 40px !important;
+    font-size: 16px;
+  }
+
+  .containerBlockDataAiElBottom button:hover {
+  }
+
+  .containerBlockDataAiElBottom button img {
+    width: 15px;
+    height: 14px;
+  }
+
+  .colorBlob {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    filter: blur(70px);
+    opacity: 0.9;
+    z-index: 0;
+  }
+
+  .pagination {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 40px;
+  }
+
+  .pagination button {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    width: 37px;
+    height: 37px;
+    color: white;
+    cursor: pointer;
+    border: none;
+    font-size: 16px;
+    transition: all 0.3s ease;
+  }
+
+  .pagination button:hover,
+  .pagination .activePage {
+    background-color: #652ab1;
+    border-radius: 12px;
+    /* border-color: #3f00ff; */
+  }
+
+  /*Модалка =====================================================*/
+
+  .modalLogo {
+    top: -50px;
+    left: 90px;
+    width: 130px;
+  }
+
+  @keyframes dropDown {
+    to {
+      top: 40px;
+    }
+  }
+
+  .modalOverlay {
+  }
+
+  .modal {
+    top: 80px;
+    padding: 25px;
+    height: 91dvh;
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .modalContent {
+    padding: 0;
+  }
+
+  .modalContentTop {
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+  }
+
+  .modalContentTop img {
+    max-width: 100%;
+    max-height: 200px;
+  }
+
+  .modalContentTopRight {
+    align-items: center;
+  }
+
+  .modalContentTopRight span:nth-of-type(1) {
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  .modalContentTopRight span:nth-of-type(2) {
+    font-size: 14px;
+    line-height: 150%;
+    text-align: justify;
+    font-weight: 400;
+    width: 100%;
+    max-width: 624px;
+    margin-top: 29px;
+  }
+
+  .modalContentTopRightButtons {
+    display: flex;
+    margin-top: 40px;
+    width: 100%;
+    gap: 20px;
+    position: static !important;
+  }
+
+  .modalContentTopRightButtons button {
+    gap: 7px;
+    width: 160px;
+    height: 44px;
+    font-size: 14px;
+  }
+
+  .modalContentTopRightButtons button:hover {
+  }
+
+  .modalContentTopRightButtons .activeTab {
+  }
+
+  .modalContentTopRightButtons button img {
+    height: 14px;
+    width: 15px;
+  }
+
+  .modalClose {
+    position: fixed;
+    top: 25px;
+    right: 20px;
+    color: #ffffff88;
+  }
+
+  .modalClose:hover {
+  }
+
+  .priceBlock {
+    flex-direction: column;
+    padding: 0;
+    margin-top: 75px;
+  }
+
+  .priceBlock div {
+    max-width: 100%;
+    height: 230px;
+  }
+
+  .priceBlock div:hover {
+  }
+
+  .priceBlock div span:nth-of-type(1) {
+    width: 102px;
+    height: 10px;
+  }
+
+  .priceBlock div span:nth-of-type(2) {
+    margin-top: 24px;
+    font-size: 20px;
+  }
+
+  .priceBlock div span:nth-of-type(3) {
+    margin-top: 30px;
+    font-size: 16px;
+  }
+
+  .priceBlock div span:nth-of-type(4) {
+    margin-top: 30px;
+    font-size: 26px;
+  }
+
+  .detailsBlock {
+    flex-direction: column;
+    margin-top: 40px;
+    gap: 30px;
+  }
+
+  .detailsBlockLeft {
+    width: 100%;
+    gap: 30px;
+  }
+
+  .detailsBlockRight {
+    width: 100%;
+    gap: 30px;
+    padding-left: 0;
+  }
+
+  .detailsBlockEl {
+  }
+
+  .detailsBlockEl span:nth-of-type(1) {
+    font-size: 20px;
+  }
+
+  .detailsBlockEl span:nth-of-type(2) {
+    font-size: 14px;
+  }
+
+  /*МОДАЛКА ================================================================ */
+}

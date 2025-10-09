@@ -1,0 +1,169 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: #0b0c10; /* подставь свой */
+  color: #fff;
+}
+
+.inner {
+  max-width: 1300px;
+  height: 90px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand img {
+  display: block;
+  height: 56px;
+  width: auto;
+}
+
+.brand1 {
+  display: none;
+}
+
+/* Десктоп-меню */
+.navDesktop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.navDesktop a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 20px;
+  transition: all 0.3s ease-in-out;
+}
+.navDesktop a:hover {
+  color: #e62d3c;
+}
+.tel {
+  white-space: nowrap;
+}
+
+/* Кнопка-бургер (скрыта на десктопе) */
+.menuBtn {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  padding: 8px;
+  border-radius: 8px;
+}
+.menuBtn:active {
+  opacity: 0.8;
+}
+.burgerLine {
+  display: block;
+  height: 2px;
+  margin: 5px 0;
+  background: #fff;
+  transition: transform 0.2s ease;
+}
+
+/* Мобильный drawer */
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100dvh;
+  width: min(80vw, 360px);
+  background: #121317;
+  transform: translateX(100%);
+  transition: transform 0.28s ease-in-out;
+  z-index: 100;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+}
+.drawerOpen {
+  transform: translateX(0);
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.drawerTitle {
+  font-weight: 700;
+}
+.closeBtn {
+  background: transparent;
+  border: 0;
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+  padding: 6px;
+  border-radius: 8px;
+}
+
+.mobileList {
+  list-style: none;
+  margin: 0;
+  padding: 12px 8px 24px;
+  display: grid;
+  gap: 6px;
+}
+.mobileList a {
+  display: block;
+  padding: 12px 12px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: #fff;
+  font-weight: 600;
+  background: transparent;
+}
+.mobileList a:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Оверлей */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0);
+  pointer-events: none;
+  transition: background 0.2s ease;
+  z-index: 90;
+}
+.overlayShow {
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+/* ————— АДАПТИВ ————— */
+@media (max-width: 768px) {
+  .brand1 {
+    display: flex;
+  }
+
+  .brand1 img {
+    height: 45px;
+  }
+
+  .header {
+    padding: 0 20px;
+   
+  }
+
+  .inner {
+    height: 72px;
+  }
+
+  .navDesktop {
+    display: none;
+  } /* прячем десктоп-меню */
+  .menuBtn {
+    display: inline-flex;
+  } /* показываем бургер */
+}

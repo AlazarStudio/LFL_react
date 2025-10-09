@@ -1,0 +1,263 @@
+.page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.pageBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 1300px;
+  padding: 60px 0;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 470px;
+  border-radius: 20px;
+  /* outline: 1px solid red; */
+}
+
+.heroLeft {
+  width: 470px;
+  height: 100%;
+}
+
+.photo {
+  width: 100%;
+  height: 100% !important;
+  /* object-fit: cover; */
+  border-radius: 20px 0 0 20px;
+  /* outline: 1px solid red; */
+  background-color: #edece7;
+}
+.photoStub {
+  border-radius: 20px 0 0 20px;
+  background: #f3f3f3;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 72px;
+  font-weight: 700;
+}
+
+.heroRight {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 830px;
+  height: 100%;
+  padding: 30px 40px;
+  background-image: linear-gradient(90deg, #000000 35%, #e62d3c 100%),
+    url('../images/clubBg.png');
+  background-size: cover;
+  background-position: center;
+  background-blend-mode: multiply;
+  color: #fff;
+  border-radius: 0 20px 20px 0;
+  position: relative;
+}
+
+.red {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+}
+
+.nameBlock {
+}
+.playerName {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+  z-index: 1;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  width: 420px;
+  gap: 24px;
+  z-index: 1;
+}
+
+.meta div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 20px;
+  font-weight: 400 !important;
+}
+
+.greenCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  z-index: 1;
+}
+
+.metrics {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+.metric {
+  text-align: center;
+}
+.metricTitle {
+  font-size: 20px;
+  font-weight: 600;
+}
+.metricValue {
+  font-size: 96px;
+  font-weight: 600;
+}
+
+.statsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100% !important;
+  /* outline: 1px solid red; */
+  margin-top: 60px;
+}
+.statsTitle {
+  font-size: 36px;
+  font-weight: 800;
+}
+.filters {
+  display: flex;
+  gap: 15px;
+}
+.selectWrap {
+  display: grid;
+  width: 202px;
+
+  gap: 6px;
+}
+.selectWrap label {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.selectWrap select {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid #e62d3c;
+  outline: none;
+  background: #fff;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.table {
+  width: 100%;
+  margin-top: 50px;
+  border: 1px solid #c5c6c6;
+  border-radius: 20px;
+}
+.tr {
+  display: grid;
+  grid-template-columns: 1.2fr 2.2fr 0.6fr 0.6fr 0.6fr 0.6fr ;
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+}
+
+.td {
+  padding: 12px 14px;
+  /* border-bottom: 1px solid #eef0f2; */
+  display: flex;
+  align-items: center;
+  width: 100% !important;
+}
+
+.trHead {
+  color: #000;
+  font-weight: 700;
+}
+
+.trHead1 {
+  color: #fff;
+  background-color: #e62d3c;
+  font-weight: 700;
+  border-radius: 0;
+}
+.trHead .td {
+  border-bottom: none;
+}
+
+.league {
+}
+.match {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.matchTitle {
+  font-weight: 600;
+}
+.matchSub {
+  opacity: 0.7;
+  font-size: 12px;
+  margin-top: 2px;
+}
+.date {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.sub {
+  opacity: 0.6;
+  font-size: 12px;
+  margin-top: 2px;
+}
+.goals,
+.assists,
+.yc,
+.rc {
+  justify-content: center;
+}
+
+.empty {
+  padding: 20px;
+  text-align: center;
+}
+
+@media (max-width: 920px) {
+  .tr {
+    grid-template-columns: 1.4fr 2fr 1.1fr 0.7fr 0.7fr 0.7fr 0.7fr;
+  }
+}
+@media (max-width: 720px) {
+  .metrics {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  .tr {
+    grid-template-columns: 1.5fr 2fr 0.9fr 0.7fr 0.7fr 0.7fr 0.7fr;
+  }
+}
+@media (max-width: 560px) {
+  .tr {
+    grid-template-columns: 1.2fr 1.8fr 0.9fr 0.6fr 0.6fr 0.6fr 0.6fr;
+  }
+  .hero {
+    gap: 16px;
+  }
+  .photo {
+    max-height: 280px;
+  }
+  .playerName {
+    font-size: 22px;
+  }
+  .metricValue {
+    font-size: 24px;
+  }
+}

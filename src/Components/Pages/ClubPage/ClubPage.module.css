@@ -1,0 +1,396 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.containerBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 1300px;
+}
+
+.containerBlockTop {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 458px;
+  border-radius: 20px;
+  margin-top: 80px;
+}
+
+.containerBlockTopLeft {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 550px;
+  height: 100%;
+}
+
+.containerBlockTopLeft img {
+  width: 550px;
+  height: 100%;
+  border-radius: 20px 0 0 20px;
+}
+
+.containerBlockTopRight {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 750px;
+  height: 458px;
+  padding: 20px 30px;
+  background-image: linear-gradient(90deg, #000000 35%, #e62d3c 100%),
+    url('../images/clubBg.png');
+  background-size: cover;
+  background-position: center;
+  background-blend-mode: multiply;
+  color: #fff;
+}
+
+.containerBlockTopRightTopTitle {
+  display: flex;
+  flex-direction: column;
+}
+
+.containerBlockTopRightTopTitle img {
+  height: 70px;
+  width: 70px;
+}
+
+.containerBlockTopRightTopTitle span {
+  font-size: 32px;
+  font-weight: 600;
+  margin-top: 20px;
+}
+
+.containerBlockTopRightBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.containerBlockTopRightBottomEl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.containerBlockTopRightBottomEl span:nth-of-type(1) {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.containerBlockTopRightBottomEl span:nth-of-type(2) {
+  font-size: 96px;
+  font-weight: 600;
+}
+
+/* КАЛЕНДАРЬ */
+
+.containerBlockCalendar {
+  display: flex;
+  width: 100%;
+  max-width: 1300px;
+  height: 294px;
+  background-color: #fff;
+  border-radius: 20px;
+  margin-top: 64px;
+  margin-bottom: 54px;
+  position: relative;
+  border: 1px solid #c5c6c6;
+}
+
+.containerBlockCalendarLeft {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 245px;
+  padding: 29px 22px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+}
+
+.containerBlockCalendarLeft span:nth-of-type(1) {
+  display: flex;
+  gap: 12px;
+}
+
+.containerBlockCalendarLeft span:nth-of-type(2) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+  padding: 10px;
+  width: 202px;
+  border-radius: 10px;
+}
+
+.activeTab,
+.buttons span:hover,
+.buttons span:hover {
+  background-color: #e62d3c;
+  color: #fff;
+}
+
+.buttons span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: -15px;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+  padding: 10px;
+  width: 202px;
+  border-radius: 10px;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.nav img {
+  width: 60px;
+  height: 60px;
+  cursor: pointer;
+}
+
+.containerBlockRight {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 1050px;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  padding: 23px 10px;
+}
+
+.slider {
+  display: flex;
+  gap: 22px;
+  transition: transform 0.5s ease-in-out; /* плавный сдвиг */
+  width: 100%;
+  height: 100%;
+}
+
+.matchCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 31%;
+  height: 100%;
+  border: 1px solid #c5c6c6;
+  border-radius: 15px;
+  padding: 15px 10px;
+  flex: 0 0 calc(100% / 3 - 20px); /* 3 карточки на экране */
+  transition: all 0.3s ease-in-out;
+}
+
+.matchDate {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.matchStadium {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 500;
+  color: #000;
+  gap: 12px;
+  height: 18px;
+}
+
+.matchStadium img {
+  height: 18px;
+  object-fit: cover;
+}
+
+.matchScore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font-size: 41px;
+  font-weight: 700;
+  gap: 18px;
+}
+
+.matchScore span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  white-space: nowrap; /* 🔑 запрет переноса */
+}
+
+.matchScore img {
+  width: 80px;
+  height: 80px;
+  border: 1px solid #c5c6c6;
+  border-radius: 5px;
+}
+
+.matchLeague {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.matchRound {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 500;
+  color: #c5c6c6;
+}
+
+/* КАЛЕНДАРЬ */
+
+.containerTeam {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.containerTeamTitle {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.containerTeamFilter {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.containerTeamFilter button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 202px;
+  height: 56px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+  background-color: inherit;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+  border: 1px solid #e62d3c;
+  border-radius: 10px;
+}
+
+.filterBtnActive {
+  background-color: #e62d3c !important;
+  color: #fff !important;
+}
+.containerTeamFilter button:hover {
+  background-color: #e62d3c;
+  color: #fff;
+}
+
+.containerTeamComand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  width: 100%;
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.playerCard {
+  display: flex;
+  flex-direction: column;
+  width: 23%;
+  height: 488px;
+  background-color: #edece7;
+  border-radius: 20px;
+}
+
+.playerCard img {
+  width: 100%;
+  height: 362px;
+  object-fit: cover;
+  border-radius: 20px 20px 0 0;
+  /* background-color: #000000; */
+}
+
+.playerInfo {
+  display: flex;
+  flex-direction: column;
+  height: 126px;
+  padding: 10px 20px;
+  background-color: #000;
+  margin-top: -5px;
+  border-radius: 0 0 20px 20px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+}
+
+.red {
+  position: absolute;
+  /* width: 100px !important; */
+  right: -5px;
+  bottom: -20px;
+  width: 60%;
+  height: 100% !important;
+}
+
+.playerPos {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 1;
+  border-bottom: 1px solid #ffffff90;
+  padding-bottom: 7px;
+  padding-top: 3px;
+  font-size: 14px;
+  font-weight: 600;
+  width: 100%;
+}
+
+.playerPos span:nth-of-type(2) {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.playerName {
+  font-size: 20px;
+  font-weight: 600;
+  margin-top: 8px;
+  z-index: 1;
+}
+
+
+.emptyList{
+  min-height: 500px;
+}
