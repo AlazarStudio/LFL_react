@@ -7,8 +7,8 @@ import uploadsConfig from '../../../uploadsConfig';
 
 const PER_PAGE = 15;
 
-// события для совместимости с PlayerStatsPage (используем для подсчёта по /matchEvents)
-const GOAL_TYPES = new Set(['GOAL', 'PENALTY_GOAL', 'OWN_GOAL']);
+// типы событий — для совместимости с расчётом по /matchEvents
+const GOAL_TYPES = new Set(['GOAL', 'PENALTY_SCORED']);
 const ASSIST_TYPES = new Set(['ASSIST']);
 const YC_TYPES = new Set(['YELLOW_CARD']);
 const RC_TYPES = new Set(['RED_CARD']);
@@ -42,8 +42,11 @@ export default function ParticipantsPage() {
   // пагинация
   const [page, setPage] = useState(1);
 
-  // агрегаты статистики по текущей странице: { [playerId]: { games, goals, pens, assists, yc, rc, avg } }
+  // агрегаты статистики по текущей странице игроков: { [playerId]: { games, goals, pens, assists, yc, rc, avg } }
   const [statsMap, setStatsMap] = useState({});
+
+  // количество матчей для судей текущей страницы: { [refereeId]: number }
+  const [refCounts, setRefCounts] = useState({});
 
   // загрузка данных в зависимости от раздела
   useEffect(() => {
@@ -58,17 +61,19 @@ export default function ParticipantsPage() {
         const data = Array.isArray(res.data) ? res.data : [];
         if (alive) {
           setItems(data);
-          // при смене раздела сбрасываем поиск/год/страницу
+          // при смене раздела сбрасываем поиск/год/страницу/агрегаты
           setQ('');
           setDebouncedQ('');
           setYear('ALL');
           setPage(1);
           setStatsMap({});
+          setRefCounts({});
         }
       } catch (e) {
         if (alive) {
           setItems([]);
           setStatsMap({});
+          setRefCounts({});
         }
       } finally {
         if (alive) setLoading(false);
@@ -133,7 +138,7 @@ export default function ParticipantsPage() {
     return true;
   };
 
-  // геттер локальной статистики игрока — как раньше (на случай, если агрегаты не пришли)
+  // геттер локальной статистики игрока — фолбэк
   const getLocalStats = (p) => {
     const s = p.stats || p.statistics || {};
     const games = Number(s.games ?? p.games ?? 0);
@@ -203,7 +208,7 @@ export default function ParticipantsPage() {
     return filtered.slice(start, start + PER_PAGE);
   }, [filtered, page]);
 
-  // === ПОДГРУЗКА АГРЕГИРОВАННЫХ СТАТОВ ДЛЯ ТЕКУЩЕЙ СТРАНИЦЫ (ТОЛЬКО PLAYERS) ===
+  // === Агрегаты для PLAYERS (по /playerStats + /matchEvents) ===
   useEffect(() => {
     if (type !== 'players') return;
     let alive = true;
@@ -216,7 +221,7 @@ export default function ParticipantsPage() {
 
     (async () => {
       try {
-        // ===== 1) пробуем получить /playerStats батчем
+        // 1) /playerStats -> matchesPlayed, goals, assists, yellow_cards, red_cards
         let statRows = [];
         try {
           const r1 = await axios.get(`${serverConfig}/playerStats`, {
@@ -238,139 +243,105 @@ export default function ParticipantsPage() {
           }
         }
 
-        // суммируем по playerId, если /playerStats есть
         const fromStats = {};
-        if (statRows.length) {
-          statRows.forEach((r) => {
-            const pid = r.playerId || r.player_id || r.player?.id;
-            if (!pid) return;
-            const prev = fromStats[pid] || {
-              games: 0,
-              goals: 0,
-              pens: 0,
-              assists: 0,
-              yc: 0,
-              rc: 0,
-              ratingSum: 0,
-              ratingCnt: 0,
-            };
-            const goals = Number(r.goals || 0);
-            const pens = Number(r.penalties || r.penaltyGoals || 0);
-            const assists = Number(r.assists || 0);
-            const yellow = Number(r.yellow || r.yellowCards || 0);
-            const red = Number(r.red || r.redCards || 0);
-            const games = Number(r.games || 0);
-            const rating = Number(r.rating || 0);
+        statRows.forEach((r) => {
+          const pid = r.playerId || r.player?.id;
+          if (!pid) return;
+          const prev = fromStats[pid] || {
+            games: 0,
+            goals: 0,
+            assists: 0,
+            yc: 0,
+            rc: 0,
+          };
+          fromStats[pid] = {
+            games: prev.games + Number(r.matchesPlayed ?? 0),
+            goals: prev.goals + Number(r.goals ?? 0),
+            assists: prev.assists + Number(r.assists ?? 0),
+            yc: prev.yc + Number(r.yellow_cards ?? 0),
+            rc: prev.rc + Number(r.red_cards ?? 0),
+          };
+        });
 
-            fromStats[pid] = {
-              games: prev.games + (isFinite(games) ? games : 0),
-              goals: prev.goals + (isFinite(goals) ? goals : 0),
-              pens: prev.pens + (isFinite(pens) ? pens : 0),
-              assists: prev.assists + (isFinite(assists) ? assists : 0),
-              yc: prev.yc + (isFinite(yellow) ? yellow : 0),
-              rc: prev.rc + (isFinite(red) ? red : 0),
-              ratingSum: prev.ratingSum + (isFinite(rating) ? rating : 0),
-              ratingCnt: prev.ratingCnt + (rating ? 1 : 0),
-            };
-          });
-        }
-
-        // ===== 2) для тех, кого /playerStats не дал, считаем по /matchEvents
-        const needIds = ids.filter((id) => !fromStats[id]);
+        // 2) /matchEvents -> считаем пенальти (и подстраховываем игры через уникальные матчи)
         let evs = [];
-        if (needIds.length) {
+        try {
+          const e1 = await axios.get(`${serverConfig}/matchEvents`, {
+            params: { filter: JSON.stringify({ playerId: { in: ids } }) },
+          });
+          evs = Array.isArray(e1.data) ? e1.data : [];
+        } catch {
           try {
-            const e1 = await axios.get(`${serverConfig}/matchEvents`, {
-              params: { filter: JSON.stringify({ playerId: { in: needIds } }) },
+            const e2 = await axios.get(`${serverConfig}/matchEvents`, {
+              params: {
+                filter: JSON.stringify({
+                  OR: ids.map((id) => ({ playerId: id })),
+                }),
+              },
             });
-            evs = Array.isArray(e1.data) ? e1.data : [];
+            evs = Array.isArray(e2.data) ? e2.data : [];
           } catch {
-            try {
-              const e2 = await axios.get(`${serverConfig}/matchEvents`, {
-                params: {
-                  filter: JSON.stringify({
-                    OR: needIds.map((id) => ({ playerId: id })),
-                  }),
-                },
-              });
-              evs = Array.isArray(e2.data) ? e2.data : [];
-            } catch {
-              // крайний случай — по одному запросу на игрока (медленнее, но точно)
-              const packs = await Promise.allSettled(
-                needIds.map((id) =>
-                  axios.get(`${serverConfig}/matchEvents`, {
-                    params: { filter: JSON.stringify({ playerId: id }) },
-                  })
-                )
-              );
-              packs.forEach((p) => {
-                if (p.status === 'fulfilled') {
-                  const arr = Array.isArray(p.value.data) ? p.value.data : [];
-                  evs.push(...arr);
-                }
-              });
-            }
+            const packs = await Promise.allSettled(
+              ids.map((id) =>
+                axios.get(`${serverConfig}/matchEvents`, {
+                  params: { filter: JSON.stringify({ playerId: id }) },
+                })
+              )
+            );
+            evs = packs.flatMap((p) =>
+              p.status === 'fulfilled' && Array.isArray(p.value.data)
+                ? p.value.data
+                : []
+            );
           }
         }
 
         const fromEvents = {};
         evs.forEach((ev) => {
-          const pid = ev.playerId || ev.player_id || ev.player?.id;
+          const pid = ev.playerId || ev.player?.id;
           if (!pid) return;
-          const type = ev.type || ev.eventType;
-          const mid = ev.matchId || ev.match_id;
+          const type = ev.type;
+          const mid = ev.matchId;
 
           const cur = fromEvents[pid] || {
             matches: new Set(),
-            goals: 0,
             pens: 0,
             assists: 0,
             yc: 0,
             rc: 0,
           };
-          if (mid) cur.matches.add(mid);
 
-          if (type === 'GOAL') cur.goals += 1;
-          if (type === 'PENALTY_GOAL') {
-            cur.goals += 1;
-            cur.pens += 1;
-          }
+          if (mid) cur.matches.add(mid);
+          if (type === 'PENALTY_SCORED') cur.pens += 1;
           if (type === 'ASSIST') cur.assists += 1;
           if (type === 'YELLOW_CARD') cur.yc += 1;
           if (type === 'RED_CARD') cur.rc += 1;
-          // OWN_GOAL — не плюсуем игроку в общие голы
 
           fromEvents[pid] = cur;
         });
 
-        // ===== 3) собираем итоговую карту
+        // 3) собрать итоговую карту
         const map = {};
         ids.forEach((id) => {
-          if (fromStats[id]) {
-            const s = fromStats[id];
-            map[id] = {
-              games: s.games,
-              goals: s.goals,
-              pens: s.pens,
-              assists: s.assists,
-              yc: s.yc,
-              rc: s.rc,
-              avg: s.ratingCnt ? +(s.ratingSum / s.ratingCnt).toFixed(1) : 0,
-            };
-          } else if (fromEvents[id]) {
-            const e = fromEvents[id];
-            map[id] = {
-              games: e.matches.size,
-              goals: e.goals,
-              pens: e.pens,
-              assists: e.assists,
-              yc: e.yc,
-              rc: e.rc,
-              avg: 0,
-            };
-          } else {
-            map[id] = null; // не нашли — пусть отрисуется fallback из локальных полей
-          }
+          const s = fromStats[id];
+          const e = fromEvents[id];
+
+          const gamesFromStats = s ? Number(s.games || 0) : 0;
+          const gamesFromEvents = e ? e.matches.size : 0;
+
+          map[id] = {
+            games: gamesFromStats > 0 ? gamesFromStats : gamesFromEvents,
+            goals: s ? Number(s.goals || 0) : 0,
+            pens: e ? Number(e.pens || 0) : 0, // пенальти — только из событий
+            assists: s
+              ? Number(s.assists || 0)
+              : e
+              ? Number(e.assists || 0)
+              : 0,
+            yc: s ? Number(s.yc || 0) : e ? Number(e.yc || 0) : 0,
+            rc: s ? Number(s.rc || 0) : e ? Number(e.rc || 0) : 0,
+            avg: 0, // рейтинга в схеме нет
+          };
         });
 
         if (alive) setStatsMap(map);
@@ -383,6 +354,56 @@ export default function ParticipantsPage() {
       alive = false;
     };
   }, [type, paged]);
+
+  // === Количество матчей для REFEREES (по /matches.matchReferees, год учитываем) ===
+  useEffect(() => {
+    if (type !== 'referees') return;
+    let alive = true;
+
+    const ids = (paged || []).map((r) => r.id).filter(Boolean);
+    if (!ids.length) {
+      if (alive) setRefCounts({});
+      return;
+    }
+
+    (async () => {
+      try {
+        const where = {
+          matchReferees: { some: { refereeId: { in: ids } } },
+        };
+
+        if (year !== 'ALL') {
+          const y = Number(year);
+          const gte = new Date(y, 0, 1).toISOString();
+          const lt = new Date(y + 1, 0, 1).toISOString();
+          where.date = { gte, lt };
+        }
+
+        const res = await axios.get(`${serverConfig}/matches`, {
+          params: { filter: JSON.stringify(where) },
+        });
+
+        const rows = Array.isArray(res.data) ? res.data : [];
+        const map = {};
+        for (const m of rows) {
+          for (const mr of m.matchReferees || []) {
+            const rid = mr.refereeId;
+            if (ids.includes(rid)) {
+              map[rid] = (map[rid] || 0) + 1;
+            }
+          }
+        }
+
+        if (alive) setRefCounts(map);
+      } catch {
+        if (alive) setRefCounts({});
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [type, paged, year]);
 
   // утилиты изображений
   const teamCover = (t) =>
@@ -402,54 +423,32 @@ export default function ParticipantsPage() {
       ? `${uploadsConfig}${p.photo[0]}`
       : '/images/placeholder-player.jpg';
 
-  // рендер карточки для teams/referees
+  // карточка ТОЛЬКО для команд
   const renderCard = (it) => {
-    if (type === 'teams') {
-      return (
-        <article
-          key={it.id}
-          className={classes.cardTeam}
-          onClick={() => navigate(`/club/${it.id}`)}
-        >
-          <div className={classes.cardTeamImage}>
-            <img src={teamCover(it)} alt={it.title} />
-          </div>
-          <div className={classes.infoBar}>
-            {teamLogo(it) ? (
-              <div className={classes.cardTeamLogo}>
-                <img
-                  className={classes.logo}
-                  src={teamLogo(it)}
-                  alt={`${it.title} логотип`}
-                />
-              </div>
-            ) : (
-              <div className={classes.logoStub} />
-            )}
-            <div className={classes.infoText}>
-              <div className={classes.titleMain}>{it.title}</div>
-              {it.city && <div className={classes.subtle}>{it.city}</div>}
-            </div>
-          </div>
-        </article>
-      );
-    }
-
-    // referees
     return (
       <article
         key={it.id}
-        className={classes.cardPlayer}
-        onClick={() => navigate(`/players/${it.id}`)}
+        className={classes.cardTeam}
+        onClick={() => navigate(`/club/${it.id}`)}
       >
-        <div className={classes.cardPlayerImage}>
-          <img src={personPhoto(it)} alt={it.name || 'Судья'} />
+        <div className={classes.cardTeamImage}>
+          <img src={teamCover(it)} alt={it.title} />
         </div>
         <div className={classes.infoBar}>
-          <div className={classes.logoStub} />
+          {teamLogo(it) ? (
+            <div className={classes.cardTeamLogo}>
+              <img
+                className={classes.logo}
+                src={teamLogo(it)}
+                alt={`${it.title} логотип`}
+              />
+            </div>
+          ) : (
+            <div className={classes.logoStub} />
+          )}
           <div className={classes.infoText}>
-            <div className={classes.titleMain}>{it.name}</div>
-            {it.category && <div className={classes.subtle}>{it.category}</div>}
+            <div className={classes.titleMain}>{it.title}</div>
+            {it.city && <div className={classes.subtle}>{it.city}</div>}
           </div>
         </div>
       </article>
@@ -486,6 +485,9 @@ export default function ParticipantsPage() {
       </div>
     );
   };
+
+  // чтобы при необходимости пробрасывать агрегаты наружу
+  const formStats = statsMap;
 
   return (
     <div className={classes.container}>
@@ -655,8 +657,72 @@ export default function ParticipantsPage() {
 
                 <Pagination />
               </div>
+            ) : type === 'referees' ? (
+              // ===== Таблица судей (как на скрине) =====
+              <div className={classes.tableWrap}>
+                <div className={`${classes.table} ${classes.playersTable}`}>
+                  <div className={`${classes.tr} ${classes.thead}`}>
+                    <div className={`${classes.td} ${classes.colNum}`}>№</div>
+                    <div className={`${classes.td} ${classes.colPlayer}`}>
+                      СУДЬЯ
+                    </div>
+                    <div className={`${classes.td} ${classes.colShort}`}>И</div>
+                  </div>
+
+                  {paged.map((it, idx) => {
+                    const iGlobal = (page - 1) * PER_PAGE + idx + 1;
+                    const photo = it?.images?.[0]
+                      ? `${uploadsConfig}${it.images[0]}`
+                      : '/images/placeholder-player.jpg';
+                    const matches = refCounts[it.id] || 0;
+
+                    return (
+                      <div
+                        key={it.id}
+                        className={`${classes.tr} ${classes.clickable}`}
+                        onClick={() => navigate(`/players/${it.id}`)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) =>
+                          e.key === 'Enter'
+                            ? navigate(`/players/${it.id}`)
+                            : null
+                        }
+                      >
+                        <div className={`${classes.td} ${classes.colNum}`}>
+                          {iGlobal}
+                        </div>
+                        <div className={`${classes.td} ${classes.colPlayer}`}>
+                          <img
+                            className={classes.avatar}
+                            src={photo}
+                            alt={it.name || 'Судья'}
+                            onError={(e) =>
+                              (e.currentTarget.src =
+                                '/images/placeholder-player.jpg')
+                            }
+                          />
+                          <div className={classes.playerMeta}>
+                            <div className={classes.playerName}>{it.name}</div>
+                            {it.category && (
+                              <div className={classes.playerTeam}>
+                                {it.category}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className={`${classes.td} ${classes.colShort}`}>
+                          {matches}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <Pagination />
+              </div>
             ) : (
-              // ===== Карточки команд/судей =====
+              // ===== Карточки команд =====
               <>
                 <div className={classes.gridCards}>{paged.map(renderCard)}</div>
                 <Pagination />

@@ -1,0 +1,552 @@
+/* src/Components/Pages/CalendarPage/CalendarPage.module.css */
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.pageWrap {
+  width: 100%;
+  max-width: 1300px;
+  margin-top: 60px;
+}
+
+.filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  margin-top: 20px;
+}
+.filter {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.filter span {
+  font-size: 14px;
+  color: #6b7280;
+}
+.filter select {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.empty {
+  text-align: center;
+  padding: 32px 0;
+  color: #9ca3af;
+}
+
+.monthBlock {
+  margin-bottom: 28px;
+}
+
+.monthTitle {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #111827;
+  margin: 12px 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.body {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.card {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  /* gap: 12px; */
+  width: 800px;
+  cursor: pointer;
+}
+
+.place {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #b9b9b9;
+  margin-top: 20px;
+}
+
+/* left */
+.colDate {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  border-right: 1px solid #c5c6c6;
+  height: 100%;
+  width: 150px;
+}
+
+.when {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.day {
+  font-size: 16px;
+}
+.time {
+  font-size: 16px !important;
+  /* color: #6b7280; */
+}
+
+.stadium {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 13px;
+}
+.stadium img {
+  width: 16px;
+  height: 16px;
+  object-fit: cover;
+}
+
+/* center */
+.colScore {
+  display: flex;
+  /* align-items: center; */
+  /* justify-content: center; */
+  gap: 10px;
+  /* outline: 1px solid red; */
+}
+
+.logo,
+.logoStub {
+  width: 48px;
+  height: 48px !important;
+  /* border: 1px solid #e5e7eb; */
+  border-radius: 6px;
+  background: #fff;
+  object-fit: contain;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.logoStub {
+  color: #9ca3af;
+  font-weight: 700;
+}
+
+.score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  margin-top: 35px;
+  height: 30px;
+  flex-wrap: nowrap;
+}
+
+/* right */
+.colRight {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-self: end;
+  text-align: right;
+}
+
+.colMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-left: 1px solid #c5c6c6;
+  padding-left: 20px;
+  height: 100%;
+  margin-left: 20px;
+}
+
+.league {
+  font-size: 16px;
+  font-weight: 600;
+}
+.round {
+  font-size: 16px;
+  color: #6b7280;
+}
+
+.containerBlockRightTop {
+}
+
+.containerBlockRightTopTitle {
+  font-size: 30px;
+  font-weight: 700;
+  width: 406px;
+}
+
+.containerBlockRightBottom {
+}
+
+.containerBlockRightBottomTitle {
+}
+
+.standingsTable {
+  display: flex;
+  flex-direction: column;
+  width: 406px;
+  margin-top: 15px;
+  border: 1px solid #c5c6c6;
+  border-radius: 1px solid #c5c6c6;
+  /* height: 100%; */
+  max-height: 950px;
+  padding: 0 13px 10px 13px;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.headerRow {
+  display: grid;
+  grid-template-columns: 40px 1fr 50px 12px;
+  /* align-items: center; */
+  padding: 26px 15px 16px 15px;
+  border-bottom: 1px solid #c5c6c6;
+}
+.standingRow {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 40px 1fr 50px 15px;
+  /* align-items: center; */
+  padding: 10px 15px;
+  border-bottom: 1px solid #c5c6c6;
+}
+
+.standingRow:hover {
+  background-color: #007031;
+  border-radius: 10px;
+  color: #fff;
+}
+
+.headerRow span {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.standingRow:nth-child(even) {
+}
+
+.team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.teamName1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 9px;
+  width: 200px;
+
+  margin-top: 5px;
+  /* outline: 1px solid red; */
+}
+
+.teamName {
+  display: flex;
+  align-items: start;
+  justify-content: start;
+  text-align: start;
+  gap: 9px;
+  width: 200px;
+
+  /* margin-top: 5px; */
+  /* outline: 1px solid red; */
+}
+
+.teamName img {
+  width: 24px;
+  height: 24px;
+}
+
+.leagueSelect {
+  width: 406px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 1px solid #c5c6c6;
+  outline: none;
+  font-size: 16px;
+  background: #fff;
+  cursor: pointer;
+  margin-top: 15px;
+}
+.standingsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.standings button {
+  height: 50px;
+  border-radius: 15px;
+  margin-top: 10px;
+  background-color: inherit;
+  border: 1px solid #c5c6c6;
+  transition: all 0.3s ease-in-out;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.standings button:hover {
+  background-color: #e62d3c;
+  border: 1px solid #e62d3c;
+  color: #fff;
+}
+
+/* mobile */
+@medi (max-width: 768px) {
+  .container {
+  }
+  .pageWrap {
+    width: 100%;
+    max-width: 1300px;
+    margin-top: 80px;
+    padding: 20px;
+  }
+
+  .header {
+    width: 100%;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .filters {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    margin-top: 20px;
+    width: 100%;
+  }
+  .filter {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+  .filter span {
+    display: none;
+    font-size: 14px;
+    color: #6b7280;
+  }
+  .filter select {
+    width: 100%;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .empty {
+    text-align: center;
+    padding: 32px 0;
+    color: #9ca3af;
+  }
+
+  .monthBlock {
+    margin-bottom: 28px;
+  }
+
+  .monthTitle {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #111827;
+    margin: 12px 0;
+  }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .body {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .games {
+    width: 100%;
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 10px;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .place {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: #b9b9b9;
+    margin-top: 20px;
+  }
+
+  /* left */
+  .colDate {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0px;
+    border-right: none;
+    height: 100%;
+    width: 100%;
+    align-items: center;
+  }
+
+  .when {
+    display: flex;
+    align-items: center;
+    gap: 0px;
+    font-weight: 600;
+  }
+  .weekday,
+  .date {
+    font-size: 12px !important;
+  }
+
+  .time {
+    font-size: 12px !important;
+    /* color: #6b7280; */
+  }
+
+  .stadium {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #6b7280;
+    font-size: 10px;
+  }
+  .stadium img {
+    width: 10px;
+    height: 10px;
+    object-fit: cover;
+  }
+
+  /* center */
+  .colScore {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+  }
+
+  .logo,
+  .logoStub {
+    width: 48px;
+    height: 48px;
+    /* border: 1px solid #e5e7eb; */
+    border-radius: 6px;
+    background: #fff;
+    object-fit: contain;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .logoStub {
+    color: #9ca3af;
+    font-weight: 700;
+  }
+
+  .score {
+    width: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1;
+    /* outline: 1px solid red; */
+  }
+
+  /* right */
+  .colRight {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .colMeta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border-left: none;
+    padding-left: 0;
+    height: 100%;
+    margin-left: 0;
+  }
+
+  .league {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .round {
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .containerBlockRightTop {
+  }
+
+  .containerBlockRightTopTitle {
+    font-size: 30px;
+    font-weight: 700;
+    width: 406px;
+  }
+
+  .containerBlockRightBottom {
+  }
+
+  .containerBlockRightBottomTitle {
+  }
+
+  .standings {
+    display: none;
+  }
+}

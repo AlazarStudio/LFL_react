@@ -11,6 +11,8 @@ import ParticipantsPage from './Components/Pages/ParticipantsPage/ParticipantsPa
 import Non_Found_Page from './Components/Pages/Non_Found_Page';
 import ClubPage from './Components/Pages/ClubPage/ClubPage';
 import PlayerStatsPage from './Components/Pages/PlayerStatsPage/PlayerStatsPage';
+import CalendarPage from './Components/Pages/CalendarPage/CalendarPage';
+import MatchPage from './Components/Pages/MatchPage/MatchPage';
 
 function App() {
   return (
@@ -34,6 +36,10 @@ function App() {
         <Route path="/club/:id" element={<ClubPage />} />
 
         <Route path="/playerStats/:id" element={<PlayerStatsPage />} />
+
+        <Route path="/tournaments" element={<CalendarPage />} />
+
+        <Route path="/match/:matchId" element={<MatchPage />} />
 
         <Route path="*" element={<Non_Found_Page />} />
       </Route>
