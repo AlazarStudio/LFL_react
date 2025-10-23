@@ -1,0 +1,216 @@
+/* ====== модалка поверх всех ====== */
+.live-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.live-modal .modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+.live-modal__dialog {
+  position: relative;
+  width: 1300px;
+  height: 85vh;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 96px rgba(0, 0, 0, 0.35);
+}
+.live-modal .modal__header,
+.live-modal .modal__footer {
+  padding: 12px 16px;
+  background: #fff;
+  position: sticky;
+  z-index: 1;
+}
+.live-modal .modal__header {
+  top: 0;
+  border-bottom: 1px solid #eee;
+}
+.live-modal .modal__footer {
+  bottom: 0;
+  border-top: 1px solid #eee;
+}
+.live-modal .modal__body {
+  padding: 16px;
+  overflow: auto;
+  max-height: calc(92vh - 112px);
+}
+
+/* ====== трёхколоночная сетка (симметрия слева/справа) ====== */
+.live-threecol {
+  display: grid;
+  grid-template-columns: 1fr minmax(380px, 420px) 1fr; /* центр фиксирован, края одинаковые */
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* ====== панели событий (лево/право одинаковые) ====== */
+.event-panel {
+  display: grid;
+  grid-template-rows: auto auto 1fr; /* заголовок, типы, форма */
+  gap: 8px;
+  /* outline: 1px solid red; */
+}
+.event-panel__team {
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fallback-note {
+  font-size: 12px;
+}
+
+/* типы событий */
+.event-types {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.event-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  cursor: pointer;
+  min-height: 40px; /* фикс высота кнопки события */
+  transition: box-shadow 0.15s ease, background 0.15s ease, border 0.15s ease;
+}
+.event-type.is-active {
+  background: #fff;
+  border-color: #cbd5e1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+}
+.event-type__icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.event-type__label {
+  font-size: 14px;
+}
+
+/* форма события — всегда занимает место (без скачков) */
+.event-form {
+  padding: 10px;
+  min-height: 200px; /* ключ: фиксируем высоту блока формы */
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+.event-form__inner {
+  width: 100%;
+}
+.event-form__empty {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000000; /* muted */
+  font-size: 14px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}
+.event-form .form__row {
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: nowrap; /* чтобы ряды не ломали высоту внезапно */
+}
+.field--minute {
+  width: 120px;
+}
+.field--grow {
+  flex: 1;
+}
+.event-form__actions {
+  align-self: flex-end;
+}
+
+/* ====== табло по центру ====== */
+.scoreboard {
+  display: flex;
+  flex-direction: column;
+}
+.scoreboard__teams {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  font-weight: 600;
+}
+.scoreboard__team {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scoreboard__team--left {
+  text-align: right;
+}
+.scoreboard__team--right {
+  text-align: left;
+}
+
+.scoreboard__score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 800;
+  gap: 12px;
+}
+.scoreboard__score span {
+  opacity: 0.6;
+}
+
+.scoreboard__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+}
+.scoreboard__controls {
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+  gap: 10px;
+}
+.scoreboard__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ====== хронология ====== */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+  gap: 20px;
+}
+
+/* утилиты */
+.onecol {
+  /* grid-template-columns: 1fr; */
+  /* gap: 16px; */
+}
+
+.table__head,
+.table__row {
+  display: grid;
+  grid-template-columns: 50px 80px 170px 200px 150px 120px 200px 10px;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+}

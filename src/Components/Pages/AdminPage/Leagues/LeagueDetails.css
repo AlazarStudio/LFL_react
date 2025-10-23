@@ -1,0 +1,28 @@
+.league-details__topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.league-details__title {
+  margin: 0;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  /* border-bottom: 1px solid #e5e7eb; */
+  margin-bottom: 16px;
+}
+.tabs__item {
+  padding: 8px 12px;
+  border-radius: 8px 8px 0 0;
+  text-decoration: none;
+  color: #000;
+}
+.tabs__item.active, .tabs__item[aria-current="page"] {
+  background: #c0c0c0;
+  font-weight: 600;
+}
+.tabs__content {
+  padding-top: 8px;
+}

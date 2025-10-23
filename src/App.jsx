@@ -13,6 +13,7 @@ import ClubPage from './Components/Pages/ClubPage/ClubPage';
 import PlayerStatsPage from './Components/Pages/PlayerStatsPage/PlayerStatsPage';
 import CalendarPage from './Components/Pages/CalendarPage/CalendarPage';
 import MatchPage from './Components/Pages/MatchPage/MatchPage';
+import AdminPage from './Components/Pages/AdminPage/Admin/AdminPage';
 
 function App() {
   return (
@@ -43,6 +44,7 @@ function App() {
 
         <Route path="*" element={<Non_Found_Page />} />
       </Route>
+      <Route path="/admin/*" element={<AdminPage />} />
     </Routes>
   );
 }

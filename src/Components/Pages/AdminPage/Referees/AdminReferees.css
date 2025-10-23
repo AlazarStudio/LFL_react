@@ -1,0 +1,107 @@
+/* src/admin/Referees/AdminReferees.css */
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.thbtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.pager__info {
+  flex: 1;
+  text-align: center;
+  color: #6b7280;
+}
+
+/* ====== модалка статистики ====== */
+.refstats-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.refstats-modal .modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+.refstats-modal__dialog {
+  position: relative;
+  width: 1000px;
+  max-width: 96vw;
+  max-height: 92vh;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 96px rgba(0, 0, 0, 0.35);
+}
+.refstats-modal .modal__header,
+.refstats-modal .modal__footer {
+  padding: 12px 16px;
+  background: #fff;
+  position: sticky;
+  z-index: 1;
+}
+.refstats-modal .modal__header {
+  top: 0;
+  border-bottom: 1px solid #eee;
+}
+.refstats-modal .modal__footer {
+  bottom: 0;
+  border-top: 1px solid #eee;
+}
+.refstats-modal .modal__body {
+  padding: 16px;
+  overflow: auto;
+  max-height: calc(92vh - 112px);
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.ref-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.kpi {
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+  padding: 8px;
+}
+.kpi__label {
+  color: #6b7280;
+  font-size: 12px;
+}
+.kpi__value {
+  font-weight: 800;
+  font-size: 18px;
+}
