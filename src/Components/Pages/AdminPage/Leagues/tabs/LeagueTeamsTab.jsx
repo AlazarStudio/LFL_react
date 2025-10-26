@@ -439,7 +439,7 @@ function RosterModal({ leagueId, leagueTeam, onClose, notify }) {
                       </label>
 
                       <button
-                        className="btn btn--sm btn--danger"
+                        className="btn btn--sm "
                         onClick={() => removeFromRoster(r.playerId)}
                         disabled={loading}
                       >
@@ -721,7 +721,7 @@ export default function LeagueTeamsTab({ leagueId }) {
                 Состав
               </button>
               <button
-                className="btn btn--sm btn--danger"
+                className="btn btn--sm "
                 onClick={() => detach(lt.teamId)}
                 disabled={loading}
               >

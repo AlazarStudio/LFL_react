@@ -47,11 +47,13 @@
   justify-content: center;
   opacity: 0.95;
   font-weight: 500;
+  color: #fff !important;
 }
 .stadium {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  color: #fff !important;
 }
 .scoreRow {
   display: flex;
@@ -61,6 +63,7 @@
   gap: 16px;
   margin-top: 12px;
   padding: 30px 100px;
+  color: #fff !important;
 }
 .teamBox {
   display: flex;
@@ -72,6 +75,7 @@
   height: 307px;
   border-radius: 20px;
   overflow: hidden;
+  color: #fff !important;
 }
 
 .img {
@@ -102,13 +106,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #E62D3C;
+  color: #e62d3c;
   font-weight: 700;
 }
 .teamName {
   font-size: 20px;
   font-weight: 700;
   text-align: center;
+  color: #fff !important;
 }
 .scoreBox {
   display: flex;
@@ -116,20 +121,24 @@
   align-items: center;
   justify-content: center;
   text-align: center;
+  color: #fff !important;
 }
 .score {
   font-size: 42px;
   font-weight: 800;
   line-height: 1;
+  color: #fff !important;
 }
 .halfScore {
   margin-top: 2px;
   opacity: 0.85;
+  color: #fff !important;
 }
 .leagueRound {
   margin-top: 6px;
   font-size: 14px;
   opacity: 0.9;
+  color: #fff !important;
 }
 
 .tabs {
@@ -138,7 +147,7 @@
   margin: 12px 0 18px;
 }
 .tabs button {
-  border: 1px solid #E62D3C;
+  border: 1px solid #e62d3c;
   background: #fff;
   border-radius: 10px;
   padding: 8px 12px;
@@ -148,9 +157,9 @@
   transition: all 0.3s ease-in-out;
 }
 .tabs button.active {
-  background: #E62D3C;
+  background: #e62d3c;
   color: #fff;
-  border-color: #E62D3C;
+  border-color: #e62d3c;
 }
 
 /* --- Протокол --- */
@@ -183,7 +192,7 @@
 }
 .protoTitle {
   font-weight: 800;
-  color: #E62D3C;
+  color: #e62d3c;
 }
 
 /* колонки состава */
@@ -206,7 +215,7 @@
 }
 .colTitle {
   font-weight: 800;
-  color: #E62D3C;
+  color: #e62d3c;
 }
 
 /* единый порядок строк и выравнивание СЛЕВА для обеих колонок */
@@ -282,7 +291,7 @@
 }
 .halfTitle {
   font-weight: 800;
-  color: #E62D3C;
+  color: #e62d3c;
   margin: 6px 0 8px;
 }
 .timeline {
@@ -306,7 +315,7 @@
 }
 .evMinute {
   font-weight: 800;
-  color: #E62D3C;
+  color: #e62d3c;
 }
 .evIcon {
   width: 22px;
@@ -755,14 +764,13 @@
 }
 
 .tabBtn:hover {
-  background-color: #E62D3C;
+  background-color: #e62d3c;
   color: #fff;
-  
 }
 
 /* активный — зелёный */
 .tabActive {
-  background: #E62D3C !important;
+  background: #e62d3c !important;
   color: #fff !important;
   border-color: #22c55e;
 }

@@ -209,8 +209,18 @@
 .table__head,
 .table__row {
   display: grid;
-  grid-template-columns: 50px 80px 170px 200px 150px 120px 200px 10px;
+  grid-template-columns: 50px 150px 170px 200px 150px 120px 200px 10px;
   gap: 12px;
   align-items: center;
   font-size: 14px;
+}
+
+.table__head1,
+.table__row1 {
+  display: grid;
+  grid-template-columns: 50px 100px 170px 200px 150px 120px 200px 10px;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+  border-bottom: 1px solid #000;
 }

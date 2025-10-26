@@ -16,19 +16,19 @@
   gap: 15px;
 }
 
-input {
+.leagues input {
   outline: none;
 }
 
-button {
+.leagues button {
   background-color: inherit !important;
 }
-a:hover,
-button:hover {
-  background-color: rgb(201, 201, 201) !important;
+
+.leagues a:hover,
+.leagues button:hover {
 }
 
-a {
+.leagues a {
   display: flex;
   align-items: center;
   justify-content: center;

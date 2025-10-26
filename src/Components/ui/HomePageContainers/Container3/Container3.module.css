@@ -22,13 +22,13 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  color: #fff;
   margin-top: 42px;
 }
 
 .containerBlockTitle span:nth-of-type(1) {
   font-size: 36px;
   font-weight: 600;
+  color: #fff !important;
 }
 
 .containerBlockTitle span:nth-of-type(2) {
@@ -36,7 +36,7 @@
   align-items: center;
   justify-content: center;
   padding: 18px 42px;
-  background-color: #ffffff50;
+  background-color: #ffff;
   border-radius: 10px;
   font-size: 16px;
   font-weight: 500;
@@ -46,7 +46,7 @@
 
 .containerBlockTitle span:nth-of-type(2):hover {
   background-color: #e62d3c;
-  color: #fff;
+  color: #fff !important;
 }
 
 .containerBlockCard {

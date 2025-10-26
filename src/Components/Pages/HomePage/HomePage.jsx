@@ -13,7 +13,7 @@ export default function HomePage() {
       <Container2 /> {/* Результаты, Статистика, Турнирная таблица */}
       <Container3 /> {/* Новости */}
       <Container4 /> {/* Фото и Видео */}
-      <Container5 /> {/* Спонсоры */}
+      {/* <Container5 /> Спонсоры */}
     </>
   );
 }

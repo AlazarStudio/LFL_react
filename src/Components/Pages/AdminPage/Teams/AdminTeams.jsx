@@ -376,7 +376,7 @@ export default function AdminTeams() {
                       Редактировать
                     </button>
                     <button
-                      className="btn btn--sm btn--danger"
+                      className="btn btn--sm "
                       onClick={() => remove(t.id)}
                     >
                       Удалить

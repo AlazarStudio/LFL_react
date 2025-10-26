@@ -3,8 +3,10 @@
   top: 0;
   z-index: 50;
   background: #0b0c10; /* подставь свой */
-  color: #fff;
+  color: #fff !important;
 }
+
+
 
 .inner {
   max-width: 1300px;
@@ -33,15 +35,19 @@
   width: 100%;
 }
 
+
+.header a,
 .navDesktop a {
-  color: #fff;
+  color: #fff !important;
   text-decoration: none;
   font-weight: 600;
   font-size: 20px;
   transition: all 0.3s ease-in-out;
 }
+.header a:hover,
 .navDesktop a:hover {
-  color: #e62d3c;
+  color: #e62d3c !important;
+  background-color: inherit !important;
 }
 .tel {
   white-space: nowrap;
@@ -153,7 +159,6 @@
 
   .header {
     padding: 0 20px;
-   
   }
 
   .inner {

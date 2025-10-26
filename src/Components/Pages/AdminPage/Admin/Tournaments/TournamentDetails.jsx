@@ -16,6 +16,8 @@ import TournamentTeamsTab from './tabs/TournamentTeamsTab';
 import TournamentRoundsTab from './tabs/TournamentRoundsTab';
 import TournamentTiesTab from './tabs/TournamentTiesTab';
 import TournamentMatchesTab from './tabs/TournamentMatchesTab';
+import BracketTab from './BracketTab';
+import TournamentBracketTab from './tabs/TournamentBracketTab';
 
 const API = `${serverConfig}/tournaments`;
 const ASSETS_BASE = String(uploadsConfig || '').replace(/\/api\/?$/, '');
@@ -80,6 +82,9 @@ export default function TournamentDetails() {
         <NavLink className="tabs__item" to="matches">
           Матчи
         </NavLink>
+        <NavLink className="tabs__item" to="bracket">
+          Сетка
+        </NavLink>
       </nav>
 
       <div className="tabs__content">
@@ -111,6 +116,7 @@ export default function TournamentDetails() {
             path="matches"
             element={<TournamentMatchesTab tournamentId={tid} />}
           />
+          <Route path="bracket" element={<TournamentBracketTab />} />
         </Routes>
       </div>
     </div>

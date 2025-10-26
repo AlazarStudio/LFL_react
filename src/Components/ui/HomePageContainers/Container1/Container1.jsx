@@ -1,16 +1,15 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import classes from './Container1.module.css';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import serverConfig from '../../../../serverConfig';
 import uploadsConfig from '../../../../uploadsConfig';
-import { useNavigate } from 'react-router-dom';
 
 export default function Container1() {
   const navigate = useNavigate();
 
-  const [matches, setMatches] = useState([]);
-  const [type, setType] = useState('SCHEDULED'); // ✅ по умолчанию будущие
+  const [matchesRaw, setMatchesRaw] = useState([]);
+  const [type, setType] = useState('SCHEDULED'); // будущие по умолчанию
   const [index, setIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [perPage, setPerPage] = useState(window.innerWidth <= 768 ? 1 : 3);
@@ -22,22 +21,123 @@ export default function Container1() {
     animRef.current = isAnimating;
   }, [isAnimating]);
 
-  // ---------- resize -> пересчёт perPage ----------
+  /* =============== helpers =============== */
+  const ensureLeadingSlash = (p) => {
+    const s = String(p || '').trim();
+    if (!s) return '';
+    return s.startsWith('/') ? s : '/' + s;
+  };
+
+  const pickLogo = (team) => {
+    if (!team) return '';
+    const l = team.logo;
+    if (Array.isArray(l)) return l[0] || '';
+    if (typeof l === 'string') return l;
+    // иногда прилетает team.logoPath или team.badge
+    return team.logoPath || team.badge || '';
+  };
+
+  // Приводим ответ сервера к единому формату,
+  // чтобы дальше компонент работал с homeTeam/guestTeam/homeScore/guestScore/league/stadium
+  const normalizeMatch = (m) => {
+    const team1 = m.team1 || m.homeTeam || m.team1Obj || null;
+    const team2 = m.team2 || m.guestTeam || m.team2Obj || null;
+    const league = m.league || m.leagueObj || null;
+    const stadiumObj = m.stadium || m.stadiumObj || null;
+
+    const homeScore = Number.isFinite(Number(m.homeScore))
+      ? Number(m.homeScore)
+      : Number.isFinite(Number(m.team1Score))
+      ? Number(m.team1Score)
+      : 0;
+
+    const guestScore = Number.isFinite(Number(m.guestScore))
+      ? Number(m.guestScore)
+      : Number.isFinite(Number(m.team2Score))
+      ? Number(m.team2Score)
+      : 0;
+
+    const norm = {
+      id: m.id,
+      date: m.date,
+      status: m.status || 'SCHEDULED',
+      round: m.round ?? m.roundNumber ?? m.matchday ?? '',
+      homeScore,
+      guestScore,
+      homeTeam: team1
+        ? {
+            id: team1.id ?? m.team1Id,
+            title:
+              team1.title || team1.name || `#${team1.id ?? m.team1Id ?? ''}`,
+            logo: [pickLogo(team1)].filter(Boolean),
+          }
+        : {
+            id: m.team1Id,
+            title: m.team1Title || `#${m.team1Id ?? ''}`,
+            logo: [],
+          },
+      guestTeam: team2
+        ? {
+            id: team2.id ?? m.team2Id,
+            title:
+              team2.title || team2.name || `#${team2.id ?? m.team2Id ?? ''}`,
+            logo: [pickLogo(team2)].filter(Boolean),
+          }
+        : {
+            id: m.team2Id,
+            title: m.team2Title || `#${m.team2Id ?? ''}`,
+            logo: [],
+          },
+      league: {
+        title:
+          league?.title ||
+          league?.name ||
+          m.leagueTitle ||
+          (typeof m.league === 'string' ? m.league : '') ||
+          '',
+      },
+      stadium:
+        (typeof stadiumObj === 'string'
+          ? stadiumObj
+          : stadiumObj?.name || stadiumObj?.title) ||
+        m.stadiumName ||
+        '',
+    };
+    return norm;
+  };
+
+  /* =============== resize =============== */
   useEffect(() => {
     const handleResize = () => setPerPage(window.innerWidth <= 768 ? 1 : 3);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ---------- загрузка ----------
+  /* =============== load =============== */
   useEffect(() => {
+    // Пытаемся запросить связи, если бэкенд поддерживает ?include=
+    const url = `${serverConfig}/matches?include=team1,team2,league,stadium`;
     axios
-      .get(`${serverConfig}/matches`)
-      .then((res) => setMatches(res.data))
-      .catch((err) => console.error('Ошибка загрузки матчей:', err));
+      .get(url)
+      .then((res) => setMatchesRaw(Array.isArray(res.data) ? res.data : []))
+      .catch(() => {
+        // фолбэк — без include
+        axios
+          .get(`${serverConfig}/matches`)
+          .then((res2) =>
+            setMatchesRaw(Array.isArray(res2.data) ? res2.data : [])
+          )
+          .catch((err) => {
+            console.error('Ошибка загрузки матчей:', err);
+            setMatchesRaw([]);
+          });
+      });
   }, []);
 
-  // ---------- фильтрация (надёжная) ----------
+  // нормализованный список
+  const matches = useMemo(() => matchesRaw.map(normalizeMatch), [matchesRaw]);
+
+  /* =============== фильтрация =============== */
   const filtered = useMemo(() => {
     const nowTs = Date.now();
 
@@ -70,7 +170,7 @@ export default function Container1() {
 
   const total = filtered.length;
 
-  // ---------- утилита кольцевого слайса ----------
+  /* =============== кольцевой слайс =============== */
   const circularSlice = (arr, start, count) => {
     if (arr.length === 0) return [];
     return Array.from(
@@ -79,7 +179,7 @@ export default function Container1() {
     );
   };
 
-  // ---------- строим слайды: клоны слева и справа всегда есть (даже если 1 карточка) ----------
+  /* =============== слайды (с клонами) =============== */
   const slides = useMemo(() => {
     if (total === 0) return [];
     const left = circularSlice(
@@ -100,7 +200,7 @@ export default function Container1() {
     [perPage, total]
   );
 
-  // ---------- переход в старт при смене данных/вкладки/ширины ----------
+  /* =============== сброс позиции при изменениях =============== */
   useEffect(() => {
     setIndex(startIndex);
     if (sliderRef.current) {
@@ -114,7 +214,7 @@ export default function Container1() {
     }
   }, [startIndex, perPage, total, type]);
 
-  // ---------- кнопки ----------
+  /* =============== навигация =============== */
   const handleNext = () => {
     if (total === 0 || isAnimating) return;
     setIsAnimating(true);
@@ -126,13 +226,12 @@ export default function Container1() {
     setIndex((prev) => prev - 1);
   };
 
-  // ---------- завершение анимации и «телепорт» на оригинальные позиции ----------
   const handleTransitionEnd = () => {
     setIsAnimating(false);
     if (total === 0) return;
 
     if (index > maxRealIndex) {
-      const newIndex = index - total; // пролистали вправо за реальные — отматываем на total назад
+      const newIndex = index - total;
       setIndex(newIndex);
       if (sliderRef.current) {
         sliderRef.current.style.transition = 'none';
@@ -144,7 +243,7 @@ export default function Container1() {
         });
       }
     } else if (index < perPage) {
-      const newIndex = index + total; // пролистали влево — вперёд на total
+      const newIndex = index + total;
       setIndex(newIndex);
       if (sliderRef.current) {
         sliderRef.current.style.transition = 'none';
@@ -158,10 +257,8 @@ export default function Container1() {
     }
   };
 
-  // ---------- применение transform при каждом шаге ----------
   useEffect(() => {
     if (!sliderRef.current) return;
-    // Если transition пустая строка — зададим дефолт анимацию
     const hasTransition =
       sliderRef.current.style.transition &&
       sliderRef.current.style.transition !== 'none';
@@ -173,7 +270,7 @@ export default function Container1() {
     }%)`;
   }, [index, perPage, isAnimating]);
 
-  // ---------- touch ----------
+  /* =============== touch/hover autoplay =============== */
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   const onTouchStart = (e) => {
@@ -189,7 +286,6 @@ export default function Container1() {
     setPaused(false);
   };
 
-  // ---------- автопрокрутка (работает и при 1 карточке) ----------
   useEffect(() => {
     if (paused || total === 0) return;
     const id = setInterval(() => {
@@ -198,7 +294,6 @@ export default function Container1() {
     return () => clearInterval(id);
   }, [paused, total, type]);
 
-  // ---------- активная точка для мобилки ----------
   const activeIndex =
     total > 0 ? (((index - perPage) % total) + total) % total : 0;
 
@@ -209,33 +304,36 @@ export default function Container1() {
           <img
             src="../images/LFLlogoBig.svg"
             className={classes.containerBlockTopLogo}
+            alt="logo"
           />
           <img
             src="../images/Любительская футбольная лига.svg"
             className={classes.containerBlockTopTitle}
+            alt="title"
           />
           <span className={classes.containerBlockTopResp}>
             Карачаево-Черкесской Республики
           </span>
           <div className={classes.containerBlockTopLink}>
             <Link to={''}>
-              <img src="../images/nartBlackTg.svg" />
+              <img src="../images/nartBlackTg.svg" alt="tg" />
             </Link>
             <Link to={''}>
-              <img src="../images/nartBlackVk.svg" />
+              <img src="../images/nartBlackVk.svg" alt="vk" />
             </Link>
             <Link to={''}>
-              <img src="../images/nartBlackWa.svg" />
+              <img src="../images/nartBlackWa.svg" alt="wa" />
             </Link>
           </div>
         </div>
+
         <div className={classes.containerBlockCalendar}>
           <div className={classes.containerBlockCalendarLeft}>
             <span>
-              <img src="../images/LFLcal.svg" />
+              <img src="../images/LFLcal.svg" alt="cal" />
               КАЛЕНДАРЬ
             </span>
-            <img src="../images/Line 2.svg" />
+            <img src="../images/Line 2.svg" alt="line" />
             <div className={classes.buttons}>
               <span
                 onClick={() => setType('FINISHED')}
@@ -251,10 +349,19 @@ export default function Container1() {
               </span>
             </div>
             <span className={classes.nav}>
-              <img src="../images/LFLleft.svg" onClick={handlePrev} />
-              <img src="../images/LFLright.svg" onClick={handleNext} />
+              <img
+                src="../images/LFLleft.svg"
+                onClick={handlePrev}
+                alt="prev"
+              />
+              <img
+                src="../images/LFLright.svg"
+                onClick={handleNext}
+                alt="next"
+              />
             </span>
           </div>
+
           <div
             className={classes.containerBlockRight}
             onTouchStart={onTouchStart}
@@ -292,6 +399,17 @@ export default function Container1() {
                       .padStart(2, '0');
                     const formatted = `${dayMonth} ${hours}:${minutes} ${weekday}`;
 
+                    const homeLogo = match.homeTeam.logo[0]
+                      ? `${uploadsConfig}${ensureLeadingSlash(
+                          match.homeTeam.logo[0]
+                        )}`
+                      : '../images/team-placeholder.svg';
+                    const guestLogo = match.guestTeam.logo[0]
+                      ? `${uploadsConfig}${ensureLeadingSlash(
+                          match.guestTeam.logo[0]
+                        )}`
+                      : '../images/team-placeholder.svg';
+
                     return (
                       <div
                         key={`${match.id}-${i}`}
@@ -299,7 +417,8 @@ export default function Container1() {
                         onClick={() => navigate(`/match/${match.id}`)}
                       >
                         <div className={classes.matchDate}>{formatted}</div>
-                        {match?.stadium && (
+
+                        {match.stadium && (
                           <div className={classes.matchStadium}>
                             <img src="../images/LFLloc.svg" alt="loc" />
                             {match.stadium}
@@ -307,28 +426,21 @@ export default function Container1() {
                         )}
 
                         <div className={classes.matchScore}>
-                          <img
-                            src={`${uploadsConfig}${
-                              match?.homeTeam?.logo?.[0] ?? ''
-                            }`}
-                            alt="home"
-                          />
+                          <img src={homeLogo} alt="home" />
                           <span>
                             {match.homeScore} : {match.guestScore}
                           </span>
-                          <img
-                            src={`${uploadsConfig}${
-                              match?.guestTeam?.logo?.[0] ?? ''
-                            }`}
-                            alt="guest"
-                          />
+                          <img src={guestLogo} alt="guest" />
                         </div>
+
                         <div className={classes.matchLeague}>
-                          {match?.league?.title}
+                          {match.league.title}
                         </div>
-                        <div className={classes.matchRound}>
-                          {match.round} ТУР
-                        </div>
+                        {match.round && (
+                          <div className={classes.matchRound}>
+                            {match.round} ТУР
+                          </div>
+                        )}
                       </div>
                     );
                   })}

@@ -527,7 +527,7 @@ export default function AdminReferees() {
                         Редакт.
                       </button>
                       <button
-                        className="btn btn--sm btn--danger"
+                        className="btn btn--sm "
                         onClick={() => remove(r.id)}
                         disabled={loading}
                       >

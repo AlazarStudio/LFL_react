@@ -328,7 +328,7 @@ export default function StadiumsTab() {
                           Изм.
                         </button>
                         <button
-                          className="btn btn--xs btn--danger"
+                          className="btn btn--xs "
                           onClick={() => removeItem(r.id)}
                         >
                           Удалить

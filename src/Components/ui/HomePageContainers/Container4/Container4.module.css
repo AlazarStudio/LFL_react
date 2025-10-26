@@ -3,6 +3,7 @@
   align-items: center;
   justify-content: center;
   width: 100%;
+  padding: 40px 0;
 }
 
 .containerBlock {
@@ -78,6 +79,7 @@
   border-radius: 12px;
   cursor: pointer;
   width: 32%;
+  height: 280px;
 }
 .card img {
   width: 100%;
@@ -211,6 +213,123 @@
   bottom: -32px;
   color: #fff;
   font-weight: 600;
+}
+
+/* ======= Модальный плеер (видео) ======= */
+.videobox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+.vbInner {
+  position: relative;
+  width: min(1100px, 92vw);
+}
+.vbVideo {
+  width: 100%;
+  height: auto;
+  max-height: 82vh;
+  border-radius: 12px;
+  background: #000;
+  display: block;
+}
+.vbClose {
+  position: absolute;
+  top: -44px;
+  right: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vbTitle {
+  margin-top: 10px;
+  color: #fff;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* Небольшой ховер-эффект для кнопки ▶ на стоп-карте видео */
+.card:hover .playBadge {
+  background: rgba(0, 0, 0, 0.65);
+  transform: translate(-50%, -50%) scale(1.06);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.videoShade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+  pointer-events: none;
+}
+.card:hover .playBadge {
+  background: rgba(0, 0, 0, 0.65);
+  transform: translate(-50%, -50%) scale(1.06);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+/* ======= Модальный плеер (видео) ======= */
+.videobox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+.vbInner {
+  position: relative;
+  width: min(1100px, 92vw);
+}
+.vbVideo {
+  width: 100%;
+  height: auto;
+  max-height: 82vh;
+  border-radius: 12px;
+  background: #000;
+  display: block;
+}
+.vbClose {
+  position: absolute;
+  top: -44px;
+  right: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vbTitle {
+  margin-top: 10px;
+  color: #fff;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  opacity: 0.9;
 }
 
 @media (max-width: 768px) {

@@ -1,12 +1,63 @@
 /* упрощённый набор, если нет общих */
-.event-types{display:flex;gap:6px;flex-wrap:wrap}
-.event-type{display:flex;align-items:center;gap:6px;border:1px solid #e5e7eb;border-radius:8px;padding:6px 8px}
-.event-type.is-active{background:#111;color:#fff}
-.live-threecol{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
-.scoreboard{display:flex;flex-direction:column;gap:8px;align-items:center}
-.scoreboard__teams{display:flex;justify-content:space-between;width:100%}
-.scoreboard__team{font-weight:600}
-.scoreboard__score{font-size:36px;font-weight:800}
-.scoreboard__top{display:flex;gap:16px}
-.scoreboard__controls{display:flex;gap:8px;align-items:center}
-.timeline__hdr{display:flex;justify-content:space-between;align-items:center}
+.event-types {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.event-type {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.event-type.is-active {
+  background: #111;
+  color: #fff;
+}
+.live-threecol {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+.scoreboard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+.scoreboard__teams {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+.scoreboard__team {
+  font-weight: 600;
+}
+.scoreboard__score {
+  font-size: 36px;
+  font-weight: 800;
+}
+.scoreboard__top {
+  display: flex;
+  gap: 16px;
+}
+.scoreboard__controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.timeline__hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.table__head,
+.table__row {
+  display: grid;
+  grid-template-columns: 40px 80px 100px 250px 150px 150px 150px 150px !important;
+  gap: 12px;
+  align-items: center;
+}

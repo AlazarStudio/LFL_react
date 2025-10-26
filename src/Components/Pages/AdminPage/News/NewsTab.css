@@ -5,9 +5,7 @@
   gap: 16px;
 }
 
-*{
-    color: #000 !important;
-}
+
 .news__header {
   display: flex;
   flex-wrap: wrap;

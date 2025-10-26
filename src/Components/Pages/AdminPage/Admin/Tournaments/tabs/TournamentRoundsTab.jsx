@@ -304,7 +304,7 @@ export default function TournamentRoundsTab({ tournamentId }) {
                         Редактировать
                       </button>
                       <button
-                        className="btn btn--sm btn--danger"
+                        className="btn"
                         onClick={() => remove(r.id)}
                       >
                         Удалить

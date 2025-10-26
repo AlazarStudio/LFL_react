@@ -1,0 +1,61 @@
+.bracket__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.bracket__title {
+  font-weight: 700;
+  font-size: 18px;
+}
+.bracket__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.bracket__gen .form__row {
+  gap: 16px;
+}
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bracket__grid {
+  padding: 12px;
+}
+.bracket__columns {
+  display: grid;
+  gap: 16px;
+}
+.bracket__col {
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 10px;
+}
+.bracket__col-title {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.bracket__tie {
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+  margin-bottom: 10px;
+}
+.bracket__team {
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+.bracket__team + .bracket__team {
+  margin-top: 6px;
+}
+.bracket__team.win {
+  background: #e6f8ea;
+  border: 1px solid #a8dfb6;
+  font-weight: 600;
+}

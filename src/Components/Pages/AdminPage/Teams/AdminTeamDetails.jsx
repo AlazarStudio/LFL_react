@@ -606,7 +606,7 @@ export default function AdminTeamDetails() {
                         Редактировать
                       </button>
                       <button
-                        className="btn btn--sm btn--danger"
+                        className="btn btn--sm "
                         onClick={() => deletePlayer(p.id)}
                       >
                         Удалить

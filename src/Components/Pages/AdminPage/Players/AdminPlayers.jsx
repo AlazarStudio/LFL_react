@@ -35,6 +35,11 @@ export default function AdminPlayers() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
+  // ▼▼▼ Новые состояния для скрытия/показа форм
+  const [showFilters, setShowFilters] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  // ▲▲▲
+
   // список и фильтры
   const [players, setPlayers] = useState([]);
   const [q, setQ] = useState('');
@@ -85,7 +90,6 @@ export default function AdminPlayers() {
   };
 
   const loadTeams = async () => {
-    // берём много команд для селектов
     const params = new URLSearchParams({
       range: JSON.stringify([0, 999]),
       sort: JSON.stringify(['title', 'ASC']),
@@ -167,6 +171,7 @@ export default function AdminPlayers() {
       images: Array.isArray(p.images) ? p.images : [],
       userId: p.user?.id || '',
     });
+    setShowForm(true); // ← при редактировании раскрываем форму
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -218,6 +223,7 @@ export default function AdminPlayers() {
         }
       }
       resetForm();
+      setShowForm(false); // ← после сохранения сворачиваем форму (можно убрать, если нужно оставлять)
       await loadPlayers();
     } catch (er) {
       console.error(er);
@@ -275,113 +281,64 @@ export default function AdminPlayers() {
 
   return (
     <div className="teams">
-      {' '}
-      {/* переиспользуем общий layout */}
-      <header className="teams__header">
-        <button className="btn btn--ghost" onClick={() => nav('/admin/teams')}>
-          ← К командам
-        </button>
-        <h1 className="teams__title">Игроки</h1>
+      {/* Header */}
+      <header className="teams__header" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <div>
+          <h1 className="teams__title" style={{}}>
+            Игроки
+          </h1>
+
+          <button
+            className="btn"
+            onClick={() => setShowFilters((v) => !v)}
+            aria-expanded={showFilters}
+            aria-controls="players-filters"
+          >
+            {showFilters ? 'Скрыть поиск' : 'Поиск'}
+          </button>
+          <button
+            className="btn"
+            onClick={() => {
+              resetForm();
+              setShowForm((v) => !v);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            aria-expanded={showForm}
+            aria-controls="players-form"
+          >
+            {showForm ? 'Скрыть форму' : 'Добавить'}
+          </button>
+        </div>
       </header>
+
       {err && <div className="alert alert--error">{err}</div>}
       {loading && <div className="alert">Загрузка…</div>}
-      {/* Фильтры */}
-      <section className="card" style={{ marginBottom: 12 }}>
-        <div className="form__row">
-          <label className="field">
-            <span className="field__label">Поиск</span>
-            <input
-              className="input"
-              placeholder="Имя…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span className="field__label">Команда</span>
-            <select
-              className="input"
-              value={teamFilter}
-              onChange={(e) => setTeamFilter(e.target.value)}
-            >
-              <option value="">Все</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span className="field__label">Лига</span>
-            <input
-              className="input"
-              type="number"
-              placeholder="ID лиги"
-              value={leagueFilter}
-              onChange={(e) => setLeagueFilter(e.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span className="field__label">Позиция</span>
-            <select
-              className="input"
-              value={posFilter}
-              onChange={(e) => setPosFilter(e.target.value)}
-            >
-              <option value="">Все</option>
-              {POSITIONS.map(([code, ru]) => (
-                <option key={code} value={code}>
-                  {ru}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span className="field__label">Есть пользователь</span>
-            <select
-              className="input"
-              value={hasUserFilter}
-              onChange={(e) => setHasUserFilter(e.target.value)}
-            >
-              <option value="">Не важно</option>
-              <option value="true">Да</option>
-              <option value="false">Нет</option>
-            </select>
-          </label>
-          <div className="form__actions" style={{ alignSelf: 'flex-end' }}>
-            <button className="btn" onClick={loadPlayers} disabled={loading}>
-              Обновить
-            </button>
-          </div>
-        </div>
-      </section>
-      {/* Форма */}
-      <section className="card">
-        <form className="form" onSubmit={save}>
+
+      {/* Фильтры (скрываемые) */}
+      {showFilters && (
+        <section
+          className="card"
+          style={{ marginBottom: 12 }}
+          id="players-filters"
+        >
           <div className="form__row">
             <label className="field">
-              <span className="field__label">Имя</span>
+              <span className="field__label">Поиск</span>
               <input
                 className="input"
-                value={form.name}
-                onChange={(e) =>
-                  setForm((s) => ({ ...s, name: e.target.value }))
-                }
-                required
+                placeholder="Имя…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
               />
             </label>
             <label className="field">
               <span className="field__label">Команда</span>
               <select
                 className="input"
-                value={form.teamId}
-                onChange={(e) =>
-                  setForm((s) => ({ ...s, teamId: e.target.value }))
-                }
-                required
+                value={teamFilter}
+                onChange={(e) => setTeamFilter(e.target.value)}
               >
-                <option value="">— выберите —</option>
+                <option value="">Все</option>
                 {teams.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.title}
@@ -390,15 +347,23 @@ export default function AdminPlayers() {
               </select>
             </label>
             <label className="field">
+              <span className="field__label">Лига</span>
+              <input
+                className="input"
+                type="number"
+                placeholder="ID лиги"
+                value={leagueFilter}
+                onChange={(e) => setLeagueFilter(e.target.value)}
+              />
+            </label>
+            <label className="field">
               <span className="field__label">Позиция</span>
               <select
                 className="input"
-                value={form.position}
-                onChange={(e) =>
-                  setForm((s) => ({ ...s, position: e.target.value }))
-                }
+                value={posFilter}
+                onChange={(e) => setPosFilter(e.target.value)}
               >
-                <option value="">—</option>
+                <option value="">Все</option>
                 {POSITIONS.map(([code, ru]) => (
                   <option key={code} value={code}>
                     {ru}
@@ -407,102 +372,193 @@ export default function AdminPlayers() {
               </select>
             </label>
             <label className="field">
-              <span className="field__label">Номер</span>
-              <input
+              <span className="field__label">Есть пользователь</span>
+              <select
                 className="input"
-                type="number"
-                min="0"
-                value={form.number}
-                onChange={(e) =>
-                  setForm((s) => ({ ...s, number: e.target.value }))
-                }
-              />
+                value={hasUserFilter}
+                onChange={(e) => setHasUserFilter(e.target.value)}
+              >
+                <option value="">Не важно</option>
+                <option value="true">Да</option>
+                <option value="false">Нет</option>
+              </select>
             </label>
-            <label className="field">
-              <span className="field__label">Дата рождения</span>
-              <input
-                className="input"
-                type="date"
-                value={form.birthDate}
-                onChange={(e) =>
-                  setForm((s) => ({ ...s, birthDate: e.target.value }))
-                }
-              />
-            </label>
-            <label className="field">
-              <span className="field__label">UserId (опц.)</span>
-              <input
-                className="input"
-                type="number"
-                min="0"
-                value={form.userId}
-                onChange={(e) =>
-                  setForm((s) => ({ ...s, userId: e.target.value }))
-                }
-              />
-            </label>
-          </div>
-
-          <div className="form__row">
-            <label className="field">
-              <span className="field__label">Фото</span>
-              <div className="upload">
-                <input
-                  ref={imgRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={onUploadImages}
-                  className="upload__input"
-                />
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => imgRef.current?.click()}
-                  disabled={loading}
-                >
-                  Выбрать
-                </button>
-              </div>
-              {form.images?.length > 0 && (
-                <div className="thumbs">
-                  {form.images.map((u) => (
-                    <div className="thumb" key={u}>
-                      <img src={buildSrc(u)} alt="" />
-                      <button
-                        type="button"
-                        className="thumb__remove"
-                        onClick={() => removeImg(u)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </label>
-          </div>
-
-          <div className="form__actions">
-            <button
-              className="btn btn--primary"
-              type="submit"
-              disabled={loading}
+            <div
+              className="form__actions"
+              style={{ alignSelf: 'flex-end', display: 'flex', gap: 8 }}
             >
-              {isEdit ? 'Сохранить' : 'Добавить'}
-            </button>
-            {isEdit && (
+              <button className="btn" onClick={loadPlayers} disabled={loading}>
+                Обновить
+              </button>
               <button
                 type="button"
                 className="btn btn--ghost"
-                onClick={resetForm}
+                onClick={() => {
+                  setQ('');
+                  setTeamFilter('');
+                  setLeagueFilter('');
+                  setPosFilter('');
+                  setHasUserFilter('');
+                }}
+              >
+                Сбросить
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Форма (скрываемая) */}
+      {showForm && (
+        <section className="card" id="players-form">
+          <form className="form" onSubmit={save}>
+            <div className="form__row">
+              <label className="field">
+                <span className="field__label">Имя</span>
+                <input
+                  className="input"
+                  value={form.name}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, name: e.target.value }))
+                  }
+                  required
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Команда</span>
+                <select
+                  className="input"
+                  value={form.teamId}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, teamId: e.target.value }))
+                  }
+                  required
+                >
+                  <option value="">— выберите —</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field__label">Позиция</span>
+                <select
+                  className="input"
+                  value={form.position}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, position: e.target.value }))
+                  }
+                >
+                  <option value="">—</option>
+                  {POSITIONS.map(([code, ru]) => (
+                    <option key={code} value={code}>
+                      {ru}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field__label">Номер</span>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  value={form.number}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, number: e.target.value }))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Дата рождения</span>
+                <input
+                  className="input"
+                  type="date"
+                  value={form.birthDate}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, birthDate: e.target.value }))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">UserId (опц.)</span>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  value={form.userId}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, userId: e.target.value }))
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="form__row">
+              <label className="field">
+                <span className="field__label">Фото</span>
+                <div className="upload">
+                  <input
+                    ref={imgRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={onUploadImages}
+                    className="upload__input"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() => imgRef.current?.click()}
+                    disabled={loading}
+                  >
+                    Выбрать
+                  </button>
+                </div>
+                {form.images?.length > 0 && (
+                  <div className="thumbs">
+                    {form.images.map((u) => (
+                      <div className="thumb" key={u}>
+                        <img src={buildSrc(u)} alt="" />
+                        <button
+                          type="button"
+                          className="thumb__remove"
+                          onClick={() => removeImg(u)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </label>
+            </div>
+
+            <div className="form__actions">
+              <button
+                className="btn btn--primary"
+                type="submit"
+                disabled={loading}
+              >
+                {isEdit ? 'Сохранить' : 'Добавить'}
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => {
+                  resetForm();
+                  setShowForm(false);
+                }}
               >
                 Отмена
               </button>
-            )}
-          </div>
-        </form>
-      </section>
+            </div>
+          </form>
+        </section>
+      )}
+
       {/* Таблица */}
       <section className="card">
         <div className="table">
@@ -548,7 +604,7 @@ export default function AdminPlayers() {
                     Редактировать
                   </button>
                   <button
-                    className="btn btn--sm btn--danger"
+                    className="btn "
                     onClick={() => remove(p.id)}
                   >
                     Удалить

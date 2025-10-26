@@ -518,7 +518,7 @@ export default function PhotosTab() {
                       Редактировать
                     </button>
                     <button
-                      className="btn btn--sm btn--danger"
+                      className="btn btn--sm "
                       onClick={() => remove(r.id)}
                     >
                       Удалить

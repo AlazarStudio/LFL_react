@@ -9,6 +9,18 @@ const API_PLAYERS = `${serverConfig}/players`;
 const API_EVENTS = `${serverConfig}/matchEvents`;
 const API_REFS = `${serverConfig}/referees`;
 
+// ---------- справочник ролей судей ----------
+const REF_ROLES = ['MAIN', 'AR1', 'AR2', 'FOURTH', 'VAR', 'AVAR', 'OBSERVER'];
+const REF_ROLE_LABEL = {
+  MAIN: 'Главный',
+  AR1: 'Ассистент 1',
+  AR2: 'Ассистент 2',
+  FOURTH: 'Четвёртый',
+  VAR: 'VAR',
+  AVAR: 'AVAR',
+  OBSERVER: 'Инспектор',
+};
+
 /* ===================== Вспомогалки ===================== */
 function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n));
@@ -56,6 +68,17 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
   const [halfStartTS, setHalfStartTS] = useState(null); // ms
   const [elapsed, setElapsed] = useState(0); // sec
   const tickRef = useRef(null);
+
+  useEffect(() => {
+    const stopEsc = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener('keydown', stopEsc, true);
+    return () => document.removeEventListener('keydown', stopEsc, true);
+  }, []);
 
   // Формы событий (создание)
   const initialEvt = {
@@ -240,11 +263,8 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
   // Умный экстрактор имени судьи из события
   const getRefereeName = (e) => {
     if (!e) return '';
-    // 1) если бэкенд вернул связанную модель
     if (e.issuedByReferee?.name) return e.issuedByReferee.name;
     if (e.referee?.name) return e.referee.name;
-
-    // 2) найти любой nested-объект *referee* с name
     for (const [k, v] of Object.entries(e)) {
       if (
         k.toLowerCase().includes('referee') &&
@@ -255,8 +275,6 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
         return v.name;
       }
     }
-
-    // 3) фолбэк: по id-полю вытянуть из локального справочника судей
     const idKey = Object.keys(e).find((k) => {
       const lk = k.toLowerCase();
       const val = e[k];
@@ -266,7 +284,6 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
       );
     });
     if (idKey) return refNameById(e[idKey]) || '';
-
     return '';
   };
 
@@ -277,7 +294,6 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
     if (e.issued_by_referee_id != null) return e.issued_by_referee_id;
     if (e.issuedByReferee?.id != null) return e.issuedByReferee.id;
     if (e.referee?.id != null) return e.referee.id;
-    // попытка найти первый nested referee с id
     for (const [k, v] of Object.entries(e)) {
       if (
         k.toLowerCase().includes('referee') &&
@@ -291,7 +307,7 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
     return '';
   };
 
-  // Загрузка событий (с attempt include + фолбэком) + пересчёт счёта
+  // Загрузка событий + пересчёт счёта
   async function loadEvents() {
     const params = new URLSearchParams({
       range: JSON.stringify([0, 999]),
@@ -309,7 +325,6 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
     }
     const list = Array.isArray(data) ? data : [];
     setEvents(list);
-    // пересчёт счёта по событиям
     const { s1, s2 } = calcScoreFromEvents(list);
     setScore1(s1);
     setScore2(s2);
@@ -317,7 +332,7 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
   }
 
   const calcScoreFromEvents = (list) => {
-    const goals = new Map(); // teamId -> count
+    const goals = new Map();
     (list || []).forEach((e) => {
       if (e.type === 'GOAL' || e.type === 'PENALTY_SCORED') {
         goals.set(e.teamId, (goals.get(e.teamId) || 0) + 1);
@@ -457,10 +472,9 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
           : null,
         description: form.description || null,
 
-        // судья — шлём во все популярные поля, чтобы бэку было проще принять
-        issuedByRefereeId: refId, // camelCase (ваша сх.)
-        refereeId: refId, // короткое
-        issued_by_referee_id: refId, // snake_case — на всякий
+        issuedByRefereeId: refId, // разные варианты для совместимости
+        refereeId: refId,
+        issued_by_referee_id: refId,
       };
 
       const res = await fetch(API_EVENTS, {
@@ -607,8 +621,7 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
 
   /* ---------- MVP вычисление и панель ---------- */
   const mvpStats = useMemo(() => {
-    // агрегируем по игроку
-    const map = new Map(); // playerId -> {goals, pens, assists, yc, rc, pmissed, teamId}
+    const map = new Map();
     const inc = (pid, key, teamId) => {
       if (!pid) return;
       const row = map.get(pid) || {
@@ -633,7 +646,6 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
       if (e.assistPlayerId) inc(e.assistPlayerId, 'assists', e.teamId);
     });
 
-    // очки
     const winner =
       score1 > score2 ? match.team1Id : score2 > score1 ? match.team2Id : null;
 
@@ -645,7 +657,6 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
         r.yc * 1 -
         r.rc * 3 -
         r.pmissed * 2;
-      // маленький бонус победителям, если есть положит. вклад
       if (winner && r.teamId === winner && r.goals + r.pens + r.assists > 0) {
         score += 1;
       }
@@ -666,8 +677,8 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
       if (b.score !== a.score) return b.score - a.score;
       if (b.goals !== a.goals) return b.goals - a.goals;
       if (b.assists !== a.assists) return b.assists - a.assists;
-      if (a.rc !== b.rc) return a.rc - b.rc; // меньше КК лучше
-      if (a.yc !== b.yc) return a.yc - b.yc; // меньше ЖК лучше
+      if (a.rc !== b.rc) return a.rc - b.rc;
+      if (a.yc !== b.yc) return a.yc - b.yc;
       return a.playerId - b.playerId;
     });
 
@@ -1196,16 +1207,14 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
 
   return (
     <div className="modal live-modal">
-      <div className="modal__backdrop" onClick={onClose} />
+      <div className="modal__backdrop"  />
       <div className="modal__dialog live-modal__dialog">
         <div className="modal__header">
           <h3 className="modal__title">
             Проведение матча: {match.team1?.title || `#${match.team1Id}`} —{' '}
             {match.team2?.title || `#${match.team2Id}`}
           </h3>
-          <button className="btn btn--ghost" onClick={onClose}>
-            ×
-          </button>
+     
         </div>
 
         <div className="modal__body">
@@ -1273,9 +1282,6 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
 
               {status === 'FINISHED' && (
                 <div className="scoreboard__downloads">
-                  {/* <button className="btn btn--sm" onClick={downloadReportPdf}>
-                    Скачать PDF
-                  </button> */}
                   <button className="btn btn--sm" onClick={downloadReportDocx}>
                     Скачать DOCX
                   </button>
@@ -1293,9 +1299,6 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
               <h4 className="timeline__title">Хронология событий</h4>
               {status === 'FINISHED' && (
                 <div className="row-actions">
-                  {/* <button className="btn btn--sm" onClick={downloadReportPdf}>
-                    Скачать PDF
-                  </button> */}
                   <button className="btn btn--sm" onClick={downloadReportDocx}>
                     Скачать DOCX
                   </button>
@@ -1363,7 +1366,7 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
                                 Изм.
                               </button>
                               <button
-                                className="btn btn--xs btn--danger"
+                                className="btn btn--xs "
                                 onClick={() => deleteEvent(e.id)}
                               >
                                 Удалить
@@ -1415,7 +1418,6 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
                                   setEditDraft((s) => ({
                                     ...s,
                                     type: ev.target.value,
-                                    // если поменяли тип, возможно нужно очистить лишние поля
                                     assistPlayerId:
                                       ev.target.value === 'GOAL'
                                         ? s.assistPlayerId
@@ -1534,7 +1536,7 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
                                 Отмена
                               </button>
                               <button
-                                className="btn btn--xs btn--danger"
+                                className="btn btn--xs "
                                 onClick={() => deleteEvent(e.id)}
                               >
                                 Удалить
@@ -1616,7 +1618,7 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
           {status !== 'FINISHED' ? (
             <>
               <button
-                className="btn btn--danger"
+                className="btn "
                 onClick={finishMatch}
                 disabled={loading}
               >
@@ -1629,9 +1631,6 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
             </>
           ) : (
             <>
-              {/* <button className="btn" onClick={downloadReportPdf}>
-                Скачать PDF
-              </button> */}
               <button className="btn" onClick={downloadReportDocx}>
                 Скачать DOCX
               </button>
@@ -1653,11 +1652,327 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
   );
 }
 
+/* ===================== Модалка: Редактирование матча ===================== */
+function EditMatchModal({
+  match, // { id, leagueId, date, status, team1Id, team2Id, stadiumId, team1Score, team2Score }
+  teams,
+  stadiums,
+  referees, // 👈 список всех судей
+  onClose,
+  onSaved, // (updatedMatch) => void
+}) {
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const [form, setForm] = useState({
+    date: match.date ? new Date(match.date).toISOString().slice(0, 16) : '',
+    status: match.status || 'SCHEDULED',
+    team1Id: String(match.team1Id || ''),
+    team2Id: String(match.team2Id || ''),
+    stadiumId: match.stadiumId ? String(match.stadiumId) : '',
+    team1Score: match.team1Score ?? 0,
+    team2Score: match.team2Score ?? 0,
+  });
+
+  // 👇 судьи текущего матча
+  const [refRows, setRefRows] = useState([
+    // { role: 'MAIN', refereeId: '' }
+  ]);
+
+  // загрузка назначенных судей
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_MATCHES}/${match.id}/referees`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+        const list =
+          (Array.isArray(data) ? data : []).map((r) => ({
+            role: r.role || '',
+            refereeId: String(r.refereeId),
+          })) || [];
+        setRefRows(list.length ? list : [{ role: 'MAIN', refereeId: '' }]);
+      } catch {
+        setRefRows([{ role: 'MAIN', refereeId: '' }]);
+      }
+    })();
+  }, [match.id]);
+
+  const addRefRow = () =>
+    setRefRows((s) => [...s, { role: '', refereeId: '' }]);
+  const rmRefRow = (i) => setRefRows((s) => s.filter((_, idx) => idx !== i));
+  const setRefRole = (i, role) =>
+    setRefRows((s) => s.map((r, idx) => (idx === i ? { ...r, role } : r)));
+  const setRefId = (i, refereeId) =>
+    setRefRows((s) => s.map((r, idx) => (idx === i ? { ...r, refereeId } : r)));
+
+  const onChange = (e) => {
+    const { name, value } = e.target;
+    setForm((s) => ({ ...s, [name]: value }));
+  };
+
+  async function save() {
+    try {
+      setErr('');
+      setLoading(true);
+
+      if (!form.team1Id || !form.team2Id)
+        throw new Error('Выберите обе команды');
+      if (form.team1Id === form.team2Id)
+        throw new Error('Команды не должны совпадать');
+
+      const payload = {
+        date: form.date ? new Date(form.date).toISOString() : null,
+        status: form.status || 'SCHEDULED',
+        team1Id: Number(form.team1Id),
+        team2Id: Number(form.team2Id),
+        stadiumId: form.stadiumId ? Number(form.stadiumId) : null,
+        team1Score: Number(form.team1Score) || 0,
+        team2Score: Number(form.team2Score) || 0,
+      };
+
+      // 1) обновляем матч
+      const res = await fetch(`${API_MATCHES}/${match.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+
+      // 2) сохраняем судей (полная замена)
+      const clean = refRows
+        .filter((r) => r.refereeId)
+        .map((r) => ({
+          refereeId: Number(r.refereeId),
+          role: r.role || null,
+        }));
+
+      const res2 = await fetch(`${API_MATCHES}/${match.id}/referees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(clean),
+      });
+      const d2 = await res2.json().catch(() => ({}));
+      if (!res2.ok) throw new Error(d2?.error || `HTTP ${res2.status}`);
+
+      onSaved?.(data);
+      onClose?.();
+    } catch (e) {
+      console.error(e);
+      setErr(e.message || 'Не удалось сохранить матч');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="modal">
+      <div className="modal__backdrop" onClick={onClose} />
+      <div className="modal__dialog">
+        <div className="modal__header">
+          <h3 className="modal__title">Редактирование матча #{match.id}</h3>
+          <button className="btn btn--ghost" onClick={onClose}>
+            ×
+          </button>
+        </div>
+
+        <div className="modal__body">
+          {err && <div className="alert alert--error">{err}</div>}
+          <div className="form">
+            <div className="form__row">
+              <label className="field">
+                <span className="field__label">Дата/время</span>
+                <input
+                  className="input"
+                  type="datetime-local"
+                  name="date"
+                  value={form.date}
+                  onChange={onChange}
+                />
+              </label>
+
+              <label className="field">
+                <span className="field__label">Статус</span>
+                <select
+                  className="input"
+                  name="status"
+                  value={form.status}
+                  onChange={onChange}
+                >
+                  <option value="SCHEDULED">SCHEDULED</option>
+                  <option value="LIVE">LIVE</option>
+                  <option value="FINISHED">FINISHED</option>
+                  <option value="POSTPONED">POSTPONED</option>
+                  <option value="CANCELED">CANCELED</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="form__row">
+              <label className="field">
+                <span className="field__label">Хозяева</span>
+                <select
+                  className="input"
+                  name="team1Id"
+                  value={form.team1Id}
+                  onChange={onChange}
+                >
+                  <option value="">—</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title} (#{t.id})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field">
+                <span className="field__label">Гости</span>
+                <select
+                  className="input"
+                  name="team2Id"
+                  value={form.team2Id}
+                  onChange={onChange}
+                >
+                  <option value="">—</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title} (#{t.id})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field">
+                <span className="field__label">Стадион</span>
+                <select
+                  className="input"
+                  name="stadiumId"
+                  value={form.stadiumId}
+                  onChange={onChange}
+                >
+                  <option value="">—</option>
+                  {stadiums.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="form__row">
+              <label className="field">
+                <span className="field__label">Счёт хозяев</span>
+                <input
+                  className="input"
+                  name="team1Score"
+                  type="number"
+                  min={0}
+                  value={form.team1Score}
+                  onChange={onChange}
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Счёт гостей</span>
+                <input
+                  className="input"
+                  name="team2Score"
+                  type="number"
+                  min={0}
+                  value={form.team2Score}
+                  onChange={onChange}
+                />
+              </label>
+            </div>
+
+            {/* ---------- Судьи матча ---------- */}
+            <div className="form__block">
+              <div className="form__block-title">Судьи матча</div>
+              {refRows.map((row, i) => (
+                <div className="form__row" key={`ref-${i}`}>
+                  <label className="field">
+                    <span className="field__label">Роль</span>
+                    <select
+                      className="input"
+                      value={row.role}
+                      onChange={(e) => setRefRole(i, e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {REF_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {REF_ROLE_LABEL[r] || r}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="field field--grow">
+                    <span className="field__label">Судья</span>
+                    <select
+                      className="input"
+                      value={row.refereeId}
+                      onChange={(e) => setRefId(i, e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {referees.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="field field--inline-actions">
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => rmRefRow(i)}
+                      title="Удалить"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <div className="form__actions">
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  onClick={addRefRow}
+                >
+                  + Добавить судью
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="modal__footer">
+          <button
+            className="btn btn--primary"
+            onClick={save}
+            disabled={loading}
+          >
+            Сохранить
+          </button>
+          <div className="spacer" />
+          <button className="btn btn--ghost" onClick={onClose}>
+            Отмена
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ===================== Оcновная вкладка матчей лиги ===================== */
 export default function LeagueMatchesTab({ leagueId }) {
   const [matches, setMatches] = useState([]);
   const [teams, setTeams] = useState([]);
   const [stadiums, setStadiums] = useState([]);
+  const [referees, setReferees] = useState([]); // 👈 справочник судей
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
@@ -1672,7 +1987,23 @@ export default function LeagueMatchesTab({ leagueId }) {
     team2Score: 0,
   });
 
-  const resetForm = () =>
+  // 👇 судьи для формы создания
+  const [createRefs, setCreateRefs] = useState([
+    { role: 'MAIN', refereeId: '' },
+  ]);
+
+  const addCreateRef = () =>
+    setCreateRefs((s) => [...s, { role: '', refereeId: '' }]);
+  const rmCreateRef = (i) =>
+    setCreateRefs((s) => s.filter((_, idx) => idx !== i));
+  const setCreateRefRole = (i, role) =>
+    setCreateRefs((s) => s.map((r, idx) => (idx === i ? { ...r, role } : r)));
+  const setCreateRefId = (i, refereeId) =>
+    setCreateRefs((s) =>
+      s.map((r, idx) => (idx === i ? { ...r, refereeId } : r))
+    );
+
+  const resetForm = () => {
     setForm({
       date: '',
       team1Id: '',
@@ -1681,8 +2012,11 @@ export default function LeagueMatchesTab({ leagueId }) {
       team1Score: 0,
       team2Score: 0,
     });
+    setCreateRefs([{ role: 'MAIN', refereeId: '' }]);
+  };
 
   const [liveMatch, setLiveMatch] = useState(null);
+  const [editMatch, setEditMatch] = useState(null);
 
   async function loadMatches() {
     const params = new URLSearchParams({
@@ -1715,12 +2049,28 @@ export default function LeagueMatchesTab({ leagueId }) {
     if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
     setStadiums(Array.isArray(data) ? data : []);
   }
+  async function loadReferees() {
+    const params = new URLSearchParams({
+      range: JSON.stringify([0, 499]),
+      sort: JSON.stringify(['name', 'ASC']),
+      filter: JSON.stringify({}),
+    });
+    const res = await fetch(`${API_REFS}?${params.toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+    setReferees(Array.isArray(data) ? data : []);
+  }
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        await Promise.all([loadMatches(), loadLeagueTeams(), loadStadiums()]);
+        await Promise.all([
+          loadMatches(),
+          loadLeagueTeams(),
+          loadStadiums(),
+          loadReferees(), // 👈 тянем список судей
+        ]);
       } catch (e) {
         console.error(e);
         setErr('Ошибка загрузки');
@@ -1736,13 +2086,22 @@ export default function LeagueMatchesTab({ leagueId }) {
     try {
       const payload = {
         leagueId: Number(leagueId),
-        date: form.date || new Date().toISOString(),
+        date: form.date
+          ? new Date(form.date).toISOString()
+          : new Date().toISOString(),
         team1Id: Number(form.team1Id),
         team2Id: Number(form.team2Id),
         stadiumId: form.stadiumId ? Number(form.stadiumId) : null,
         status: 'SCHEDULED',
         team1Score: Number(form.team1Score) || 0,
         team2Score: Number(form.team2Score) || 0,
+        // 👇 сразу прикрепляем судей
+        matchReferees: createRefs
+          .filter((r) => r.refereeId)
+          .map((r) => ({
+            refereeId: Number(r.refereeId),
+            role: r.role || null,
+          })),
       };
       const res = await fetch(API_MATCHES, {
         method: 'POST',
@@ -1770,6 +2129,12 @@ export default function LeagueMatchesTab({ leagueId }) {
       console.error(e);
       setErr('Не удалось удалить матч');
     }
+  }
+
+  function applyUpdatedMatch(updated) {
+    setMatches((list) =>
+      list.map((m) => (m.id === updated.id ? { ...m, ...updated } : m))
+    );
   }
 
   const teamName = (id) => teams.find((t) => t.id === id)?.title || `#${id}`;
@@ -1823,6 +2188,7 @@ export default function LeagueMatchesTab({ leagueId }) {
                   onChange={(e) =>
                     setForm((s) => ({ ...s, team1Id: e.target.value }))
                   }
+                  required
                 >
                   <option value="">—</option>
                   {teams.map((t) => (
@@ -1840,6 +2206,7 @@ export default function LeagueMatchesTab({ leagueId }) {
                   onChange={(e) =>
                     setForm((s) => ({ ...s, team2Id: e.target.value }))
                   }
+                  required
                 >
                   <option value="">—</option>
                   {teams.map((t) => (
@@ -1895,6 +2262,66 @@ export default function LeagueMatchesTab({ leagueId }) {
                   }
                 />
               </label>
+            </div>
+
+            {/* ---------- Судьи матча (создание) ---------- */}
+            <div className="form__block">
+              <div className="form__block-title">Судьи матча</div>
+              {createRefs.map((row, i) => (
+                <div className="form__row" key={`c-ref-${i}`}>
+                  <label className="field">
+                    <span className="field__label">Роль</span>
+                    <select
+                      className="input"
+                      value={row.role}
+                      onChange={(e) => setCreateRefRole(i, e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {REF_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {REF_ROLE_LABEL[r] || r}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="field field--grow">
+                    <span className="field__label">Судья</span>
+                    <select
+                      className="input"
+                      value={row.refereeId}
+                      onChange={(e) => setCreateRefId(i, e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {referees.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="field field--inline-actions">
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => rmCreateRef(i)}
+                      title="Удалить"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <div className="form__actions">
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  onClick={addCreateRef}
+                >
+                  + Добавить судью
+                </button>
+              </div>
             </div>
 
             <div className="form__actions">
@@ -1958,7 +2385,14 @@ export default function LeagueMatchesTab({ leagueId }) {
                     Провести матч
                   </button>
                   <button
-                    className="btn btn--sm btn--danger"
+                    className="btn btn--sm"
+                    style={{ marginLeft: 6 }}
+                    onClick={() => setEditMatch(m)}
+                  >
+                    Редактировать
+                  </button>
+                  <button
+                    className="btn btn--sm "
                     onClick={() => removeMatch(m.id)}
                   >
                     Удалить
@@ -1975,6 +2409,20 @@ export default function LeagueMatchesTab({ leagueId }) {
           match={liveMatch}
           onClose={() => setLiveMatch(null)}
           onScoreChanged={(id, score) => patchMatchScore(id, score)}
+        />
+      )}
+
+      {editMatch && (
+        <EditMatchModal
+          match={editMatch}
+          teams={teams}
+          stadiums={stadiums}
+          referees={referees} // 👈 передаем справочник
+          onClose={() => setEditMatch(null)}
+          onSaved={(upd) => {
+            applyUpdatedMatch(upd);
+            setEditMatch(null);
+          }}
         />
       )}
     </div>

@@ -6,6 +6,24 @@ import DOMPurify from 'dompurify';
 import serverConfig from '../../../serverConfig';
 import uploadsConfig from '../../../uploadsConfig';
 
+function buildSrc(u = '') {
+  if (!u) return '';
+  return /^https?:\/\//i.test(u) ? u : `${uploadsConfig}${u}`;
+}
+
+function ytId(url = '') {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1);
+    if (u.searchParams.get('v')) return u.searchParams.get('v');
+    const parts = u.pathname.split('/');
+    const idx = parts.indexOf('embed');
+    return idx >= 0 ? parts[idx + 1] : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function OneNewsPage() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -35,7 +53,6 @@ export default function OneNewsPage() {
         if (!alive) return;
 
         setList(data);
-        // ищем текущую по id (сравниваем как строки)
         const cur = data.find((n) => String(n.id) === String(id)) || null;
         setCurrent(cur);
       } catch (e) {
@@ -55,7 +72,6 @@ export default function OneNewsPage() {
       ? new Intl.DateTimeFormat('ru-RU', {
           day: '2-digit',
           month: 'long',
-          // year: 'numeric',
         }).format(new Date(iso))
       : '';
 
@@ -64,6 +80,7 @@ export default function OneNewsPage() {
     return `${uploadsConfig}${current.images[0]}`;
   }, [current]);
 
+  // Разрешаем <video> и <iframe> в описании
   const safeHtml = useMemo(() => {
     return DOMPurify.sanitize(current?.description || '', {
       ALLOWED_TAGS: [
@@ -86,6 +103,9 @@ export default function OneNewsPage() {
         'h6',
         'img',
         'span',
+        'video',
+        'source',
+        'iframe',
       ],
       ALLOWED_ATTR: {
         a: ['href', 'target', 'rel', 'name'],
@@ -98,9 +118,18 @@ export default function OneNewsPage() {
         h4: ['class'],
         h5: ['class'],
         h6: ['class'],
+        video: ['src', 'controls', 'preload', 'poster'],
+        source: ['src', 'type'],
+        iframe: ['src', 'title', 'allow', 'allowfullscreen', 'frameborder'],
       },
     });
   }, [current]);
+
+  const videoUrls = useMemo(
+    () =>
+      Array.isArray(current?.videos) ? current.videos.filter(Boolean) : [],
+    [current]
+  );
 
   const more = useMemo(() => {
     // 3 последние, не включая текущую
@@ -124,11 +153,6 @@ export default function OneNewsPage() {
   return (
     <div className={classes.container}>
       <div className={classes.containerBlock}>
-        {/* <div className={classes.metaRow}>
-          <button className={classes.backBtn} onClick={() => navigate('/news')}>
-            ← Назад к новостям
-          </button>
-        </div> */}
         <div className={classes.articleWrap}>
           <div className={classes.articleWrapTop}>
             {heroSrc && <img src={heroSrc} alt={current.title || 'Новость'} />}
@@ -141,6 +165,40 @@ export default function OneNewsPage() {
               )}
             </div>
           </div>
+
+          {/* ВИДЕО над описанием (покажем все, если их несколько) */}
+          {videoUrls.length > 0 && (
+            <div
+              className={classes.videosBlock}
+              style={{ marginTop: 16, marginBottom: 16 }}
+            >
+              {videoUrls.map((v, i) => {
+                const yid = ytId(v);
+                if (yid) {
+                  return (
+                    <div key={`yt-${i}`} className={classes.videoBox}>
+                      <iframe
+                        src={`https://www.youtube.com/embed/${yid}`}
+                        title={`video-${i}`}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <div
+                    key={`loc-${i}`}
+                    className={classes.videoBox}
+                    style={{ marginBottom: 12 }}
+                  >
+                    <video src={buildSrc(v)} controls preload="metadata" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <div
             className={classes.richText}
             dangerouslySetInnerHTML={{ __html: safeHtml }}
@@ -178,6 +236,7 @@ export default function OneNewsPage() {
                           src={img}
                           alt={n.title || 'Новость'}
                           loading="lazy"
+                          className={classes.img123}
                         />
                       </div>
                     )}

@@ -30,7 +30,7 @@ function Header() {
           <Link to="/" className={classes.brand} aria-label="На главную">
             <img src="/images/logoLFL.svg" alt="LFL" />
           </Link>
-          <Link to="/about">О ЛИГЕ</Link>
+          {/* <Link to="/about">О ЛИГЕ</Link> */}
           <Link to="/tournaments">ТУРНИРЫ</Link>
           <Link to="/participants">УЧАСТНИКИ</Link>
           <Link to="/news">НОВОСТИ</Link>
@@ -79,7 +79,7 @@ function Header() {
         </div>
         <ul className={classes.mobileList} onClick={onNavClick}>
           <li>
-            <Link to="/about">О ЛИГЕ</Link>
+            {/* <Link to="/about">О ЛИГЕ</Link> */}
           </li>
           <li>
             <Link to="/tournaments">ТУРНИРЫ</Link>

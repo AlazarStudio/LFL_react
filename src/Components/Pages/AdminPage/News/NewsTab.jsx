@@ -6,16 +6,17 @@ import 'react-quill/dist/quill.snow.css';
 import './NewsTab.css';
 
 const API_NEWS = `${serverConfig}/news`;
-const API_UPLOAD = `${serverConfig}/upload`; // загрузка медиа через /api/upload
+const API_UPLOAD_IMAGES = `${serverConfig}/upload`; // изображения -> поле 'files'
+const API_UPLOAD_VIDEOS = `${serverConfig}/upload-videos`; // видео -> поле 'videos'
 const API_LEAGUES = `${serverConfig}/leagues`;
 const API_MATCHES = `${serverConfig}/matches`;
 const API_TOURNAMENTS = `${serverConfig}/tournaments`;
 
-// ======== Quill: кастомные форматы/блоки/патчи ========
+/* ========= Quill: кастомные форматы/блоки/патчи ========= */
 const BlockEmbed = Quill.import('blots/block/embed');
 const Link = Quill.import('formats/link');
 
-// 1) Локальное видео: <video src="..." controls>
+// <video src="..." controls> (локально загруженное видео)
 class LocalVideoBlot extends BlockEmbed {
   static blotName = 'localVideo';
   static tagName = 'video';
@@ -35,7 +36,7 @@ class LocalVideoBlot extends BlockEmbed {
 }
 Quill.register(LocalVideoBlot);
 
-// 2) Разделитель: <hr>
+// Разделитель: <hr>
 class DividerBlot extends BlockEmbed {
   static blotName = 'divider';
   static tagName = 'hr';
@@ -47,7 +48,7 @@ class DividerBlot extends BlockEmbed {
 }
 Quill.register(DividerBlot);
 
-// 3) Ссылки всегда с target=_blank
+// Все ссылки открывать в новой вкладке
 const _linkCreate = Link.create;
 Link.create = function (value) {
   const node = _linkCreate.call(this, value);
@@ -57,7 +58,7 @@ Link.create = function (value) {
 };
 Quill.register(Link, true);
 
-// ================== utils ===================
+/* ================== utils ================== */
 const ASSETS_BASE = String(uploadsConfig || '').replace(/\/api\/?$/, '');
 
 function buildSrc(pathOrUrl) {
@@ -85,7 +86,6 @@ function dtLoc(s) {
   }
 }
 
-// превью в списке — вычищаем теги и обрезаем
 function stripTags(html) {
   const tmp = document.createElement('div');
   tmp.innerHTML = html || '';
@@ -94,7 +94,7 @@ function stripTags(html) {
 }
 const cut = (s, n = 140) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
-// матч: красивая подпись
+// красивая подпись для селекта матча
 function matchLabel(m) {
   const left = m.team1?.title || `#${m.team1Id}`;
   const right = m.team2?.title || `#${m.team2Id}`;
@@ -102,7 +102,7 @@ function matchLabel(m) {
   return `${left} — ${right}${dt ? ` • ${dt}` : ''} (#${m.id})`;
 }
 
-// ================== компонент ===================
+/* ================== компонент ================== */
 export default function NewsTab() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -136,7 +136,7 @@ export default function NewsTab() {
   const quillImageInputRef = useRef(null);
   const quillVideoInputRef = useRef(null);
 
-  // ===== загрузка новостей =====
+  /* ===== загрузка новостей ===== */
   async function load() {
     setLoading(true);
     setError('');
@@ -159,7 +159,7 @@ export default function NewsTab() {
     }
   }
 
-  // ===== справочники =====
+  /* ===== справочники ===== */
   async function loadLeagues() {
     try {
       const params = new URLSearchParams({
@@ -211,27 +211,28 @@ export default function NewsTab() {
     }
   }
 
-  // первичная загрузка
+  /* первичная загрузка */
   useEffect(() => {
     load();
     loadLeagues();
-    loadMatches(); // без фильтра — покажем все до выбора лиги
+    loadMatches(); // без фильтра — показываем все, пока лига не выбрана
     loadTournaments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // когда меняется выбранная лига — перезагружаем матчи под неё и сбрасываем матч
-  useEffect(() => {
-    loadMatches(form.leagueId || '');
-    setForm((s) => ({ ...s, matchId: '' })); // сбросить несоответствующий матч
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.leagueId]);
-
-  // обновление списка по поиску
+  // перезагрузка при поиске
   useEffect(() => {
     load();
   }, [q]);
 
+  // при смене лиги — подгружаем матчи и сбрасываем matchId
+  useEffect(() => {
+    loadMatches(form.leagueId || '');
+    setForm((s) => ({ ...s, matchId: '' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.leagueId]);
+
+  /* ===== форма ===== */
   function resetForm() {
     setForm({
       id: null,
@@ -270,37 +271,35 @@ export default function NewsTab() {
     });
     setError('');
     setShowForm(true);
-
-    // подгрузим матчи под текущую лигу (если есть)
     loadMatches(row.leagueId ?? '');
   }
 
-  // ===== upload =====
-  async function uploadMany(fileList) {
+  /* ===== upload ===== */
+  async function uploadMany(fileList, endpoint, fieldName) {
     const files = Array.from(fileList || []);
     if (!files.length) return [];
     const fd = new FormData();
-    files.forEach((f) => fd.append('files', f));
-    const res = await fetch(API_UPLOAD, { method: 'POST', body: fd });
+    files.forEach((f) => fd.append(fieldName, f)); // ВАЖНО: имя поля
+    const res = await fetch(endpoint, { method: 'POST', body: fd });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok)
+    if (!res.ok) {
       throw new Error(
         data?.error || data?.message || `Upload HTTP ${res.status}`
       );
+    }
     const urls = Array.isArray(data.filePaths) ? data.filePaths : [];
     if (!urls.length) throw new Error('Сервер не вернул пути к файлам');
     return urls;
   }
-  async function uploadOne(file) {
-    const urls = await uploadMany([file]);
-    return urls[0];
-  }
+  const uploadImages = (files) => uploadMany(files, API_UPLOAD_IMAGES, 'files');
+  const uploadVideos = (files) =>
+    uploadMany(files, API_UPLOAD_VIDEOS, 'videos');
 
   async function onUploadImages(e) {
     try {
       setLoading(true);
       setError('');
-      const urls = await uploadMany(e.target.files);
+      const urls = await uploadImages(e.target.files);
       setForm((s) => ({ ...s, images: [...s.images, ...urls] }));
     } catch (err) {
       console.error(err);
@@ -315,7 +314,7 @@ export default function NewsTab() {
     try {
       setLoading(true);
       setError('');
-      const urls = await uploadMany(e.target.files);
+      const urls = await uploadVideos(e.target.files);
       setForm((s) => ({ ...s, videos: [...s.videos, ...urls] }));
     } catch (err) {
       console.error(err);
@@ -333,7 +332,7 @@ export default function NewsTab() {
     setForm((s) => ({ ...s, videos: s.videos.filter((u) => u !== url) }));
   }
 
-  // ====== Quill toolbar handlers ======
+  /* ====== Quill toolbar handlers ====== */
   const handleInsertDivider = () => {
     const quill = quillRef.current?.getEditor();
     if (!quill) return;
@@ -343,28 +342,18 @@ export default function NewsTab() {
     quill.setSelection(index + 1, 0, 'user');
   };
 
-  const handleUndo = () => {
-    const quill = quillRef.current?.getEditor();
-    quill?.history.undo();
-  };
-  const handleRedo = () => {
-    const quill = quillRef.current?.getEditor();
-    quill?.history.redo();
-  };
+  const handleUndo = () => quillRef.current?.getEditor()?.history.undo();
+  const handleRedo = () => quillRef.current?.getEditor()?.history.redo();
 
-  const triggerImageSelect = () => {
-    quillImageInputRef.current?.click();
-  };
-  const triggerVideoSelect = () => {
-    quillVideoInputRef.current?.click();
-  };
+  const triggerImageSelect = () => quillImageInputRef.current?.click();
+  const triggerVideoSelect = () => quillVideoInputRef.current?.click();
 
   const onQuillPickImage = async (ev) => {
     const file = ev.target.files?.[0];
     if (!file) return;
     try {
       setLoading(true);
-      const path = await uploadOne(file);
+      const [path] = await uploadImages([file]); // <-- изображения в /upload (files)
       const quill = quillRef.current?.getEditor();
       if (!quill) return;
       const range = quill.getSelection(true);
@@ -385,7 +374,7 @@ export default function NewsTab() {
     if (!file) return;
     try {
       setLoading(true);
-      const path = await uploadOne(file);
+      const [path] = await uploadVideos([file]); // <-- видео в /upload-videos (videos)
       const quill = quillRef.current?.getEditor();
       if (!quill) return;
       const range = quill.getSelection(true);
@@ -401,7 +390,7 @@ export default function NewsTab() {
     }
   };
 
-  // ====== save/remove ======
+  /* ====== save/remove ====== */
   async function save(e) {
     e.preventDefault();
     setError('');
@@ -455,7 +444,7 @@ export default function NewsTab() {
     }
   }
 
-  // ====== Quill toolbar/config ======
+  /* ====== Quill config ====== */
   const quillModules = useMemo(
     () => ({
       toolbar: {
@@ -515,7 +504,7 @@ export default function NewsTab() {
     'divider',
   ];
 
-  // ====== render ======
+  /* ====== render ====== */
   return (
     <div className="news">
       <header className="news__header">
@@ -604,7 +593,7 @@ export default function NewsTab() {
               </label>
             </div>
 
-            {/* ===== Привязки (селекты) ===== */}
+            {/* ===== Привязки ===== */}
             <div className="form__row">
               {/* Лига */}
               <label className="field">
@@ -665,7 +654,7 @@ export default function NewsTab() {
               </label>
             </div>
 
-            {/* ===== Медиа-вложения записи ===== */}
+            {/* ===== Медиа-вложения ===== */}
             <div className="form__row">
               {/* Изображения */}
               <label className="field field--grow">
@@ -843,7 +832,7 @@ export default function NewsTab() {
                         Редактировать
                       </button>
                       <button
-                        className="btn btn--sm btn--danger"
+                        className="btn btn--sm "
                         onClick={() => remove(r.id)}
                       >
                         Удалить

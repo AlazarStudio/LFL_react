@@ -19,15 +19,68 @@ export default function Container2() {
   const [selectedLeague, setSelectedLeague] = useState(null);
   const [playerStats, setPlayerStats] = useState([]);
 
+  // ---- helpers ----
+  const teamLogo = (team) =>
+    team?.logo?.[0] ? `${uploadsConfig}${team.logo[0]}` : null;
+  const playerAvatar = (p) =>
+    p?.images?.[0] ? `${uploadsConfig}${p.images[0]}` : null;
+  const playerName = (row) =>
+    row?.player?.name || row?.player_name || 'Без имени';
+  const playerTeam = (row) =>
+    row?.player?.team?.title || row?.team?.title || row?.team_name || '';
+
+  const fmtTime = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('ru-RU', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Нормализация полей матча под один формат
+  const normalizeMatch = (m) => {
+    if (!m) return null;
+    const homeTeam =
+      m.homeTeam || m.team1 || m.home_team || m.team1Rel || m.team1rel || null;
+    const guestTeam =
+      m.guestTeam ||
+      m.team2 ||
+      m.guest_team ||
+      m.team2Rel ||
+      m.team2rel ||
+      null;
+
+    // очки
+    const homeScore =
+      m.homeScore ?? m.team1Score ?? m.home_score ?? m.home ?? 0;
+    const guestScore =
+      m.guestScore ?? m.team2Score ?? m.guest_score ?? m.guest ?? 0;
+
+    return {
+      ...m,
+      homeTeam,
+      guestTeam,
+      homeScore,
+      guestScore,
+    };
+  };
+
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
+        setLoading(true);
+
         const [leaguesRes, standingsRes, matchesRes, playerStatsRes] =
           await Promise.all([
             axios.get(`${serverConfig}/leagues`),
             axios.get(`${serverConfig}/leagueStandings`),
-            axios.get(`${serverConfig}/matches`),
+            // ⚠️ тянем команды в матчах
+            axios.get(`${serverConfig}/matches`, {
+              params: { include: 'team1,team2' },
+            }),
             axios.get(`${serverConfig}/playerStats`),
           ]);
 
@@ -39,16 +92,21 @@ export default function Container2() {
         setLeagues(leaguesData);
         setStandings(Array.isArray(standingsRes.data) ? standingsRes.data : []);
 
-        const m = Array.isArray(matchesRes.data) ? matchesRes.data : [];
-        m.sort((a, b) => new Date(b.date) - new Date(a.date));
+        // нормализуем матчи
+        const mRaw = Array.isArray(matchesRes.data) ? matchesRes.data : [];
+        const m = mRaw
+          .map(normalizeMatch)
+          .filter(Boolean)
+          .sort((a, b) => new Date(b.date) - new Date(a.date));
         setMatches(m);
 
         setPlayerStats(
           Array.isArray(playerStatsRes.data) ? playerStatsRes.data : []
         );
 
-        if (leaguesData.length) setSelectedLeague(leaguesData[0].id); // первая лига по умолчанию
-      } catch {
+        if (leaguesData.length) setSelectedLeague(leaguesData[0].id);
+      } catch (e) {
+        console.error(e);
         if (alive) setErr('Не удалось загрузить данные');
       } finally {
         if (alive) setLoading(false);
@@ -59,40 +117,24 @@ export default function Container2() {
     };
   }, []);
 
-  // утилиты
-  const teamLogo = (team) =>
-    team?.logo?.[0] ? `${uploadsConfig}${team.logo[0]}` : null;
-  const playerAvatar = (p) =>
-    p?.images?.[0] ? `${uploadsConfig}${p.images[0]}` : null;
-  const playerName = (row) =>
-    row?.player?.name || row?.player_name || 'Без имени';
-  const playerTeam = (row) =>
-    row?.player?.team?.title || row?.team?.title || row?.team_name || '';
-
-  const getLeagueIdFromStat = (row) =>
-    row?.league_id ??
-    row?.leagueId ??
-    row?.league?.id ??
-    row?.player?.team?.league?.id ??
-    row?.team?.league?.id ??
-    null;
-
-  // последние завершённые матчи выбранной лиги
+  // —— РЕЗУЛЬТАТЫ ——
   const finishedAll = useMemo(
     () =>
       matches
         .filter(
-          (m) => m.status === 'FINISHED' && m.homeTeam && m.guestTeam && m.date
+          (m) =>
+            m.status === 'FINISHED' && !!m.homeTeam && !!m.guestTeam && !!m.date
         )
         .sort((a, b) => new Date(b.date) - new Date(a.date)),
     [matches]
   );
 
-  const DAYS_TO_SHOW = 10; // покажем последние 3 дня; можно увеличить
+  const DAYS_TO_SHOW = 10;
   const finishedByDay = useMemo(() => {
     const byKey = new Map(); // 'YYYY-MM-DD' -> []
     for (const m of finishedAll) {
       const d = new Date(m.date);
+      if (Number.isNaN(d.getTime())) continue;
       const key =
         d.getFullYear() +
         '-' +
@@ -106,7 +148,6 @@ export default function Container2() {
     const arr = Array.from(byKey.entries())
       .sort((a, b) => (a[0] < b[0] ? 1 : -1))
       .map(([key, items]) => {
-        // сортируем матчи внутри дня по времени
         items.sort((a, b) => new Date(a.date) - new Date(b.date));
 
         const [y, mm, dd] = key.split('-').map(Number);
@@ -115,12 +156,12 @@ export default function Container2() {
         const dateTitle = new Intl.DateTimeFormat('ru-RU', {
           day: '2-digit',
           month: '2-digit',
-        }).format(d); // "4 октября"
+        }).format(d);
 
         const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'short' })
-          .format(d) // "пт."
-          .replace('.', '') // "пт"
-          .toUpperCase(); // "ПТ"
+          .format(d)
+          .replace('.', '')
+          .toUpperCase();
 
         return { key, title: dateTitle, weekday, items };
       });
@@ -128,36 +169,18 @@ export default function Container2() {
     return arr.slice(0, DAYS_TO_SHOW);
   }, [finishedAll]);
 
-  const fmtTime = (iso) =>
-    new Date(iso).toLocaleTimeString('ru-RU', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-  // таблица выбранной лиги
+  // —— ТАБЛИЦА ——
   const filteredStandings = useMemo(
     () =>
       standings
-        .slice() // чтобы не мутировать исходный массив
+        .slice()
         .sort((a, b) => b.points - a.points || b.goals_for - a.goals_for),
     [standings]
   );
 
-  // —— СТАТИСТИКА ИГРОКОВ (фильтр по лиге -> топы) ——
-
-  const finishedSummary = useMemo(() => {
-    const played = finishedAll.length;
-    const goals = finishedAll.reduce(
-      (sum, m) =>
-        sum + (Number(m.homeScore) || 0) + (Number(m.guestScore) || 0),
-      0
-    );
-    return { played, goals };
-  }, [finishedAll]);
-
+  // —— СТАТИСТИКА ИГРОКОВ ——
   const filteredPlayerStats = useMemo(() => playerStats, [playerStats]);
 
-  // без лимита
   const topBy = (key, secondary = 'matchesPlayed') => {
     const copy = [...filteredPlayerStats];
     copy.sort((a, b) => {
@@ -165,7 +188,7 @@ export default function Container2() {
       if (d !== 0) return d;
       return (Number(a[secondary]) || 0) - (Number(b[secondary]) || 0);
     });
-    return copy; // НЕ режем
+    return copy;
   };
 
   const topScorers = useMemo(() => topBy('goals'), [filteredPlayerStats]);
@@ -179,10 +202,8 @@ export default function Container2() {
       if (yk !== 0) return yk;
       return (Number(a.matchesPlayed) || 0) - (Number(b.matchesPlayed) || 0);
     });
-    return copy; // тоже без обрезки
+    return copy;
   }, [filteredPlayerStats]);
-
-  // формат даты/времени/дня недели
 
   if (loading) return <div className={classes.container}>Загрузка…</div>;
   if (err) return <div className={classes.container}>{err}</div>;

@@ -19,30 +19,32 @@ const TAB_LABEL = {
   [TAB.VIDEO]: 'ВИДЕО',
 };
 
+// Поля позиций из FieldPosition
 const posRu = {
-  GOALKEEPER: 'Вр',
-  DEFENDER: 'Зщ',
-  MIDFIELDER: 'Пз',
-  FORWARD: 'Нап',
-  HEAD_COACH: 'Главный тренер',
-  ASSISTANT_COACH: 'Ассистент',
-  GOALKEEPER_COACH: 'Тренер вратарей',
-  FITNESS_COACH: 'Фитнес-тренер',
-  ANALYST: 'Аналитик',
-  PHYSIOTHERAPIST: 'Физиотерапевт',
-  DOCTOR: 'Врач',
-  TEAM_MANAGER: 'Администратор',
-  MASSEUR: 'Массажист',
-  KIT_MANAGER: 'Экипировщик',
+  GK: 'Вр',
+  RB: 'ПЗ',
+  CB: 'ЦЗ',
+  LB: 'ЛЗ',
+  RWB: 'ПЗ/ВФ',
+  LWB: 'ЛЗ/ВФ',
+  DM: 'ОПЗ',
+  CM: 'ЦП',
+  AM: 'АП',
+  RW: 'ПФ',
+  LW: 'ЛФ',
+  SS: 'АПН',
+  ST: 'Нап',
 };
 
+// Роли судей из RefereeRole
 const roleRu = {
   MAIN: 'Главный судья',
-  ASSISTANT1: 'Ассистент 1',
-  ASSISTANT2: 'Ассистент 2',
+  AR1: 'Ассистент 1',
+  AR2: 'Ассистент 2',
   FOURTH: 'Четвёртый судья',
   VAR: 'VAR',
   AVAR: 'AVAR',
+  OBSERVER: 'Инспектор',
 };
 
 function fmtHeaderDate(iso) {
@@ -75,15 +77,10 @@ function ytId(url = '') {
   }
 }
 
-// --- helpers для составов ---
+// --- составы (STARTER) из participants ---
 const startersFromParticipants = (participants, teamId) =>
   (participants || [])
     .filter((pm) => pm.role === 'STARTER' && pm.player?.teamId === teamId)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id - b.id);
-
-const startersFromApi = (lineupsSide) =>
-  (lineupsSide?.starters || [])
-    .slice()
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id - b.id);
 
 const mapStarter = (x) => {
@@ -97,6 +94,71 @@ const mapStarter = (x) => {
   };
 };
 
+// ---------- загрузчики фото/видео по matchId ----------
+async function loadPhotosByMatchId(matchId, setImages) {
+  const params = {
+    range: JSON.stringify([0, 499]),
+    sort: JSON.stringify(['date', 'DESC']),
+    filter: JSON.stringify({ matchId: Number(matchId) }),
+  };
+
+  // пробуем /photos
+  try {
+    const r = await axios.get(`${serverConfig}/images`, { params });
+    const arr = Array.isArray(r.data) ? r.data : [];
+    const imgs = arr
+      .flatMap((p) => (Array.isArray(p.images) ? p.images : []))
+      .filter(Boolean);
+    setImages(imgs);
+    return;
+  } catch {}
+  // фолбэк: /photo
+  try {
+    const r2 = await axios.get(`${serverConfig}/photo`, { params });
+    const arr2 = Array.isArray(r2.data) ? r2.data : [];
+    const imgs2 = arr2
+      .flatMap((p) => (Array.isArray(p.images) ? p.images : []))
+      .filter(Boolean);
+    setImages(imgs2);
+  } catch {
+    setImages([]);
+  }
+}
+
+async function loadVideosByMatchId(matchId, setVideos) {
+  const params = {
+    range: JSON.stringify([0, 499]),
+    sort: JSON.stringify(['date', 'DESC']),
+    filter: JSON.stringify({ matchId: Number(matchId) }),
+  };
+
+  // пробуем /videos
+  try {
+    const r = await axios.get(`${serverConfig}/videos`, { params });
+    const arr = Array.isArray(r.data) ? r.data : [];
+    const vids = [];
+    arr.forEach((v) => {
+      if (v?.url) vids.push(v.url);
+      if (Array.isArray(v?.videos)) vids.push(...v.videos);
+    });
+    setVideos(vids.filter(Boolean));
+    return;
+  } catch {}
+  // фолбэк: /video
+  try {
+    const r2 = await axios.get(`${serverConfig}/video`, { params });
+    const arr2 = Array.isArray(r2.data) ? r2.data : [];
+    const vids2 = [];
+    arr2.forEach((v) => {
+      if (v?.url) vids2.push(v.url);
+      if (Array.isArray(v?.videos)) vids2.push(...v.videos);
+    });
+    setVideos(vids2.filter(Boolean));
+  } catch {
+    setVideos([]);
+  }
+}
+
 export default function MatchPage() {
   const { matchId } = useParams();
 
@@ -105,10 +167,13 @@ export default function MatchPage() {
 
   const [match, setMatch] = useState(null);
   const [events, setEvents] = useState([]);
-  const [homePlayers, setHomePlayers] = useState([]);
-  const [guestPlayers, setGuestPlayers] = useState([]);
-  const [lineups, setLineups] = useState(null); // фоллбек на /lineups
-  const [tab, setTab] = useState(null); // активная вкладка (или null, если пока ничего нет)
+  const [team1Players, setTeam1Players] = useState([]);
+  const [team2Players, setTeam2Players] = useState([]);
+  const [tab, setTab] = useState(null);
+
+  // Фото/видео
+  const [images, setImages] = useState([]);
+  const [videos, setVideos] = useState([]);
 
   // --------- ГАЛЕРЕЯ -----------
   const [isGalleryOpen, setGalleryOpen] = useState(false);
@@ -161,70 +226,64 @@ export default function MatchPage() {
     (async () => {
       try {
         setLoading(true);
-        // матч
-        let m;
-        try {
-          const r = await axios.get(`${serverConfig}/matches/${matchId}`);
-          m = r.data;
-        } catch {
-          const r = await axios.get(`${serverConfig}/matches`, {
-            params: { filter: JSON.stringify({ id: [Number(matchId)] }) },
-          });
-          m = Array.isArray(r.data) ? r.data[0] : null;
-        }
+        setErr('');
+
+        // матч (+ участники, судьи, команды, стадион)
+        const include =
+          'league,round,stadium,team1,team2,referees,participants';
+        const mRes = await axios.get(
+          `${serverConfig}/matches/${matchId}?include=${encodeURIComponent(
+            include
+          )}`
+        );
+        if (!alive) return;
+        const m = mRes.data;
         if (!m) throw new Error('Матч не найден');
-        if (alive) setMatch(m);
+        setMatch(m);
 
-        // если participants пуст — подтянем lineups фоллбеком
+        // события (удобная ручка — уже отсортирована)
         try {
-          if (!m?.participants?.length) {
-            const lr = await axios.get(
-              `${serverConfig}/matches/${matchId}/lineups`
-            );
-            if (alive) setLineups(lr.data);
-          } else {
-            if (alive) setLineups(null);
-          }
-        } catch {
-          if (alive) setLineups(null);
-        }
-
-        // события
-        try {
-          const evR = await axios.get(`${serverConfig}/matchEvents`, {
-            params: { filter: JSON.stringify({ matchId: Number(matchId) }) },
-          });
-          const arr = Array.isArray(evR.data) ? evR.data : [];
-          arr.sort(
-            (a, b) =>
-              (a.half || 1) - (b.half || 1) ||
-              (a.minute ?? 0) - (b.minute ?? 0) ||
-              a.id - b.id
+          const evR = await axios.get(
+            `${serverConfig}/matches/${matchId}/events`
           );
-          if (alive) setEvents(arr);
+          if (alive) setEvents(Array.isArray(evR.data) ? evR.data : []);
         } catch {
           if (alive) setEvents([]);
         }
 
-        // (опционально) игроки команд
-        const hp = m?.homeTeamId
-          ? axios.get(`${serverConfig}/players`, {
+        // Фото/Видео загружаем отдельными ручками по matchId
+        await Promise.all([
+          loadPhotosByMatchId(matchId, (imgs) => alive && setImages(imgs)),
+          loadVideosByMatchId(matchId, (vids) => alive && setVideos(vids)),
+        ]);
+
+        // Фолбэк: списки игроков команд (если participants нет)
+        try {
+          const [t1R, t2R] = await Promise.all([
+            axios.get(`${serverConfig}/players`, {
               params: {
-                filter: JSON.stringify({ teamId: Number(m.homeTeamId) }),
+                range: JSON.stringify([0, 499]),
+                sort: JSON.stringify(['name', 'ASC']),
+                filter: JSON.stringify({ teamId: Number(m.team1Id) }),
               },
-            })
-          : Promise.resolve({ data: [] });
-        const gp = m?.guestTeamId
-          ? axios.get(`${serverConfig}/players`, {
+            }),
+            axios.get(`${serverConfig}/players`, {
               params: {
-                filter: JSON.stringify({ teamId: Number(m.guestTeamId) }),
+                range: JSON.stringify([0, 499]),
+                sort: JSON.stringify(['name', 'ASC']),
+                filter: JSON.stringify({ teamId: Number(m.team2Id) }),
               },
-            })
-          : Promise.resolve({ data: [] });
-        const [homeRes, guestRes] = await Promise.all([hp, gp]);
-        if (alive) {
-          setHomePlayers(Array.isArray(homeRes.data) ? homeRes.data : []);
-          setGuestPlayers(Array.isArray(guestRes.data) ? guestRes.data : []);
+            }),
+          ]);
+          if (alive) {
+            setTeam1Players(Array.isArray(t1R.data) ? t1R.data : []);
+            setTeam2Players(Array.isArray(t2R.data) ? t2R.data : []);
+          }
+        } catch {
+          if (alive) {
+            setTeam1Players([]);
+            setTeam2Players([]);
+          }
         }
       } catch (e) {
         if (alive) setErr('Не удалось загрузить страницу матча');
@@ -232,60 +291,53 @@ export default function MatchPage() {
         if (alive) setLoading(false);
       }
     })();
+
     return () => {
       alive = false;
     };
   }, [matchId]);
 
   // стартовые составы
-  const homeStarters = useMemo(() => {
+  const team1Starters = useMemo(() => {
     if (!match) return [];
     if (match.participants?.length) {
-      return startersFromParticipants(match.participants, match.homeTeamId).map(
+      return startersFromParticipants(match.participants, match.team1Id).map(
         mapStarter
       );
     }
-    if (lineups?.home) {
-      return startersFromApi(lineups.home).map(mapStarter);
-    }
     return [];
-  }, [match, lineups]);
+  }, [match]);
 
-  const guestStarters = useMemo(() => {
+  const team2Starters = useMemo(() => {
     if (!match) return [];
     if (match.participants?.length) {
-      return startersFromParticipants(
-        match.participants,
-        match.guestTeamId
-      ).map(mapStarter);
-    }
-    if (lineups?.guest) {
-      return startersFromApi(lineups.guest).map(mapStarter);
+      return startersFromParticipants(match.participants, match.team2Id).map(
+        mapStarter
+      );
     }
     return [];
-  }, [match, lineups]);
+  }, [match]);
 
+  // счёт по 1-му тайму для шапки
   const headerHalfScore = useMemo(() => {
     if (!events?.length || !match) return null;
-    let h = 0;
-    let g = 0;
+    let a = 0;
+    let b = 0;
     events.forEach((e) => {
-      if (e.type !== 'GOAL' || (e.half || 1) !== 1) return;
-      if (e.teamId === match.homeTeamId) h += 1;
-      if (e.teamId === match.guestTeamId) g += 1;
+      if (e.type !== 'GOAL' && e.type !== 'PENALTY_SCORED') return;
+      if ((e.half || 1) !== 1) return;
+      if (e.teamId === match.team1Id) a += 1;
+      if (e.teamId === match.team2Id) b += 1;
     });
-    return `(${h}:${g})`;
+    return `(${a}:${b})`;
   }, [events, match]);
 
-  const homeLogo = match?.homeTeam?.logo?.[0]
-    ? `${uploadsConfig}${match.homeTeam.logo[0]}`
+  const team1Logo = match?.team1?.logo?.[0]
+    ? `${uploadsConfig}${match.team1.logo[0]}`
     : null;
-  const guestLogo = match?.guestTeam?.logo?.[0]
-    ? `${uploadsConfig}${match.guestTeam.logo[0]}`
+  const team2Logo = match?.team2?.logo?.[0]
+    ? `${uploadsConfig}${match.team2.logo[0]}`
     : null;
-
-  const images = Array.isArray(match?.images) ? match.images : [];
-  const videos = Array.isArray(match?.videos) ? match.videos : [];
 
   const isPenaltyType = (t) => t === 'PENALTY_SCORED' || t === 'PENALTY_MISSED';
   const isPenaltyShootoutEvent = (e) =>
@@ -321,9 +373,9 @@ export default function MatchPage() {
   };
 
   const sideOf = (teamId) =>
-    teamId === match?.homeTeamId
+    teamId === match?.team1Id
       ? 'home'
-      : teamId === match?.guestTeamId
+      : teamId === match?.team2Id
       ? 'guest'
       : 'home';
 
@@ -372,7 +424,7 @@ export default function MatchPage() {
 
   // ----- наличие контента для вкладок -----
   const hasProtocol =
-    homeStarters.length + guestStarters.length > 0 ||
+    team1Starters.length + team2Starters.length > 0 ||
     (Array.isArray(match?.matchReferees) && match.matchReferees.length > 0);
   const hasEvents = half1.length + half2.length + pens.length > 0;
   const hasPhoto = images.length > 0;
@@ -411,46 +463,43 @@ export default function MatchPage() {
               <span>{fmtHeaderDate(match.date)}</span>
               <span className={classes.stadium}>
                 <img src="/images/nartLocation.svg" alt="" />
-                {match.stadium}
+                {match.stadiumRel?.name || match.stadium?.name || ''}
               </span>
             </div>
 
             <div className={classes.scoreRow}>
               <div className={classes.teamBox}>
                 <div className={classes.teamBoxBottom}>
-                  {homeLogo ? (
-                    <img src={homeLogo} alt={match?.homeTeam?.title} />
+                  {team1Logo ? (
+                    <img src={team1Logo} alt={match?.team1?.title} />
                   ) : (
                     <div className={classes.logoStub}>H</div>
                   )}
-                  <div className={classes.teamName}>
-                    {match?.homeTeam?.title}
-                  </div>
+                  <div className={classes.teamName}>{match?.team1?.title}</div>
                 </div>
               </div>
 
               <div className={classes.scoreBox}>
                 <div className={classes.score}>
-                  {match.homeScore} : {match.guestScore}
+                  {match.team1Score} : {match.team2Score}
                 </div>
                 {!!headerHalfScore && (
                   <div className={classes.halfScore}>{headerHalfScore}</div>
                 )}
                 <div className={classes.leagueRound}>
-                  {match?.league?.title || ''} · {match.round} тур
+                  {match?.league?.title || ''}{' '}
+                  {match?.round?.number ? `· ${match.round.number} тур` : ''}
                 </div>
               </div>
 
               <div className={classes.teamBox}>
                 <div className={classes.teamBoxBottom}>
-                  {guestLogo ? (
-                    <img src={guestLogo} alt={match?.guestTeam?.title} />
+                  {team2Logo ? (
+                    <img src={team2Logo} alt={match?.team2?.title} />
                   ) : (
                     <div className={classes.logoStub}>G</div>
                   )}
-                  <div className={classes.teamName}>
-                    {match?.guestTeam?.title}
-                  </div>
+                  <div className={classes.teamName}>{match?.team2?.title}</div>
                 </div>
               </div>
             </div>
@@ -485,12 +534,12 @@ export default function MatchPage() {
               <div className={classes.col}>
                 <div className={classes.colHead}>
                   <span className={classes.colTitle}>
-                    {match?.homeTeam?.title}
+                    {match?.team1?.title}
                   </span>
                 </div>
 
-                {homeStarters.length > 0 &&
-                  homeStarters.map((p) => (
+                {team1Starters.length > 0 &&
+                  team1Starters.map((p) => (
                     <div key={p.id} className={classes.playerRow}>
                       <span className={classes.shirt}>{p.number ?? '-'}</span>
                       <span className={classes.pname}>
@@ -501,17 +550,23 @@ export default function MatchPage() {
                       </span>
                     </div>
                   ))}
+
+                {team1Starters.length === 0 && (
+                  <div className={classes.note}>
+                    Официальный состав на матч не опубликован.
+                  </div>
+                )}
               </div>
 
               <div className={classes.col}>
                 <div className={classes.colHead}>
                   <span className={classes.colTitle}>
-                    {match?.guestTeam?.title}
+                    {match?.team2?.title}
                   </span>
                 </div>
 
-                {guestStarters.length > 0 &&
-                  guestStarters.map((p) => (
+                {team2Starters.length > 0 &&
+                  team2Starters.map((p) => (
                     <div key={p.id} className={classes.playerRow}>
                       <span className={classes.shirt}>{p.number ?? '-'}</span>
                       <span className={classes.pname}>
@@ -522,6 +577,12 @@ export default function MatchPage() {
                       </span>
                     </div>
                   ))}
+
+                {team2Starters.length === 0 && (
+                  <div className={classes.note}>
+                    Официальный состав на матч не опубликован.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -539,7 +600,7 @@ export default function MatchPage() {
                           {mr.referee?.name || '—'}
                         </span>
                         <span className={classes.ppos}>
-                          {roleRu[mr.role] || mr.role}
+                          {roleRu[mr.role] || mr.role || '—'}
                         </span>
                       </div>
                     ))}
@@ -553,17 +614,17 @@ export default function MatchPage() {
           <div className={classes.eventsCard}>
             <div className={classes.eventsTeamsHeader}>
               <span className={classes.teamSideLeft}>
-                {homeLogo ? (
-                  <img src={homeLogo} alt={match?.homeTeam?.title} />
+                {team1Logo ? (
+                  <img src={team1Logo} alt={match?.team1?.title} />
                 ) : (
                   <div className={classes.logoStub}>H</div>
                 )}
-                {match?.homeTeam?.title || 'Хозяева'}
+                {match?.team1?.title || 'Хозяева'}
               </span>
               <span className={classes.teamSideRight}>
-                {match?.guestTeam?.title || 'Гости'}
-                {guestLogo ? (
-                  <img src={guestLogo} alt={match?.guestTeam?.title} />
+                {match?.team2?.title || 'Гости'}
+                {team2Logo ? (
+                  <img src={team2Logo} alt={match?.team2?.title} />
                 ) : (
                   <div className={classes.logoStub}>G</div>
                 )}

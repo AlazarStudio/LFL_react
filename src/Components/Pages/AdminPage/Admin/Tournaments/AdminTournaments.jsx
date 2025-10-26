@@ -305,7 +305,7 @@ export default function AdminTournaments() {
                   />
                   <button
                     type="button"
-                    className="btn btn--ghost"
+                    className="btn"
                     onClick={() => imagesRef.current?.click()}
                     disabled={loading}
                   >
@@ -334,7 +334,7 @@ export default function AdminTournaments() {
 
             <div className="form__actions">
               <button
-                className="btn btn--primary"
+                className="btn "
                 type="submit"
                 disabled={loading}
               >
@@ -342,7 +342,7 @@ export default function AdminTournaments() {
               </button>
               <button
                 type="button"
-                className="btn btn--ghost"
+                className="btn"
                 onClick={() => {
                   resetForm();
                   setShowForm(false);
@@ -380,19 +380,19 @@ export default function AdminTournaments() {
                   <div>{toDateInput(r.startDate) || '—'}</div>
                   <div className="table__actions">
                     <Link
-                      className="btn btn--sm"
+                      className="btn"
                       to={`/admin/tournaments/${r.id}`}
                     >
                       Открыть
                     </Link>
                     <button
-                      className="btn btn--sm"
+                      className="btn"
                       onClick={() => startEdit(r)}
                     >
                       Редактировать
                     </button>
                     <button
-                      className="btn btn--sm btn--danger"
+                      className="btn"
                       onClick={() => remove(r.id)}
                     >
                       Удалить

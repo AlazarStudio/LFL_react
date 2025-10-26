@@ -547,7 +547,7 @@ export default function VideosTab() {
                       Редактировать
                     </button>
                     <button
-                      className="btn btn--sm btn--danger"
+                      className="btn btn--sm "
                       onClick={() => remove(r.id)}
                     >
                       Удалить

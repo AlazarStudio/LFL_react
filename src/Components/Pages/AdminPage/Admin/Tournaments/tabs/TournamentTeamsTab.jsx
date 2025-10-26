@@ -327,7 +327,7 @@ function RosterModal({ tournamentId, tt, onClose }) {
                         <span>Капитан</span>
                       </label>
                       <button
-                        className="btn btn--sm btn--danger"
+                        className="btn btn--sm "
                         onClick={() => removeFromRoster(r.playerId)}
                         disabled={loading}
                       >
@@ -594,7 +594,7 @@ export default function TournamentTeamsTab({ tournamentId }) {
                 Заявка
               </button>
               <button
-                className="btn btn--sm btn--danger"
+                className="btn btn--sm "
                 onClick={() => detach(tt.teamId)}
                 disabled={loading}
               >

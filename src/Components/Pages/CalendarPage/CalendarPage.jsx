@@ -7,91 +7,123 @@ import { useNavigate } from 'react-router-dom';
 
 const PER_PAGE = 12; // сколько матчей показывать на странице
 
+/* ---------- утилиты (поддержка разных схем) ---------- */
+const getT1 = (m) => m.team1 ?? m.homeTeam ?? m.team1TT?.team ?? null;
+const getT2 = (m) => m.team2 ?? m.guestTeam ?? m.team2TT?.team ?? null;
+const getT1Id = (m) =>
+  m.team1Id ?? m.homeTeamId ?? m.team1TT?.teamId ?? getT1(m)?.id ?? null;
+const getT2Id = (m) =>
+  m.team2Id ?? m.guestTeamId ?? m.team2TT?.teamId ?? getT2(m)?.id ?? null;
+const getScore1 = (m) => m.team1Score ?? m.homeScore ?? 0;
+const getScore2 = (m) => m.team2Score ?? m.guestScore ?? 0;
+
+/* турнир */
+const getTournament = (m) => m.tournament ?? null;
+const getTournamentTitle = (m) => getTournament(m)?.title ?? '';
+const getSeason = (m) =>
+  getTournament(m)?.season
+    ? String(getTournament(m).season)
+    : m?.date
+    ? String(new Date(m.date).getFullYear())
+    : '';
+
+/* раунд (для турниров бывают stage/name/number) */
+const stageLabel = (st) => {
+  if (!st) return '';
+  const map = {
+    ROUND_OF_32: '1/16',
+    ROUND_OF_16: '1/8',
+    QUARTERFINAL: '1/4',
+    SEMIFINAL: '1/2',
+    FINAL: 'ФИНАЛ',
+    THIRD_PLACE: 'МАТЧ ЗА 3-е',
+  };
+  return map[st] ?? String(st).replaceAll('_', ' ');
+};
+const getRoundTitle = (m) => {
+  const r = m?.round;
+  if (!r) return '';
+  if (r.name) return r.name;
+  if (r.number != null) return `${r.number}`;
+  if (r.stage) return stageLabel(r.stage);
+  return '';
+};
+
+const getStadiumName = (m) =>
+  m?.stadium?.name ??
+  m?.stadiumRel?.name ??
+  (typeof m.stadium === 'string' ? m.stadium : '') ??
+  '';
+
+const teamLogoUrl = (team) =>
+  team?.logo?.[0] ? `${uploadsConfig}${team.logo[0]}` : null;
+
+/* форматтер ячейки даты */
+const fmtCellDate = (iso) => {
+  const d = new Date(iso);
+  const date = new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+  })
+    .format(d)
+    .replace(' г.', '');
+  const time = d.toLocaleTimeString('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'short' })
+    .format(d)
+    .replace('.', '')
+    .toUpperCase();
+  return { date, time, weekday };
+};
+
 export default function CalendarPage() {
+  const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
-  const [teams, setTeams] = useState([]);
+  /* -------- справочники -------- */
+  const [tournaments, setTournaments] = useState([]);
+  const [tournamentId, setTournamentId] = useState(null); // выбранный турнир
+  const [tournamentTeams, setTournamentTeams] = useState([]); // /tournaments/:id/teams
+
+  /* -------- данные -------- */
   const [matches, setMatches] = useState([]);
 
-  // фильтры
+  /* -------- фильтры -------- */
   const [teamId, setTeamId] = useState('ALL');
   const [season, setSeason] = useState('ALL');
-  const [leagueId, setLeagueId] = useState('ALL');
 
-  const [news, setNews] = useState([]);
-  const [standings, setStandings] = useState([]);
-  const [leagues, setLeagues] = useState([]);
-  const [selectedLeague, setSelectedLeague] = useState(null);
-
-  // пагинация
+  /* -------- пагинация -------- */
   const [page, setPage] = useState(1);
 
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [newsRes, standingsRes, leaguesRes, matchesRes] =
-          await Promise.all([
-            axios.get(`${serverConfig}/news`),
-            axios.get(`${serverConfig}/leagueStandings`),
-            axios.get(`${serverConfig}/leagues`),
-            axios.get(`${serverConfig}/matches`),
-          ]);
-
-        const sortedNews = [...newsRes.data].sort(
-          (a, b) => new Date(b.date) - new Date(a.date)
-        );
-
-        setNews(sortedNews.slice(0, 6));
-        setStandings(standingsRes.data);
-        setLeagues(leaguesRes.data);
-        setMatches(matchesRes.data);
-        if (leaguesRes.data.length > 0) {
-          setSelectedLeague(leaguesRes.data[0].id);
-        }
-      } catch (err) {
-        console.error('Ошибка загрузки данных:', err);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  const finishedMatches = matches
-    .filter(
-      (m) =>
-        m.status === 'FINISHED' &&
-        m.league?.id === selectedLeague &&
-        m.homeTeam &&
-        m.guestTeam
-    )
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  const filteredStandings = standings
-    .filter((row) => !selectedLeague || row.league_id === selectedLeague)
-    .sort((a, b) => b.points - a.points || b.goals_for - a.goals_for);
-
+  /* ================= первичная загрузка: турниры ================= */
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoading(true);
-
-        // 1) все команды
-        const tRes = await axios.get(`${serverConfig}/teams`);
-        if (alive) setTeams(Array.isArray(tRes.data) ? tRes.data : []);
-
-        // 2) все матчи
-        const mRes = await axios.get(`${serverConfig}/matches`);
-        const list = Array.isArray(mRes.data) ? mRes.data : [];
-
-        // сортируем по дате (сначала свежие)
-        list.sort((a, b) => new Date(b.date) - new Date(a.date));
-        if (alive) setMatches(list);
+        setErr('');
+        const tRes = await axios.get(`${serverConfig}/tournaments`, {
+          params: {
+            sort: JSON.stringify(['startDate', 'DESC']),
+            range: JSON.stringify([0, 999]),
+          },
+        });
+        if (!alive) return;
+        const tData = Array.isArray(tRes.data) ? tRes.data : [];
+        setTournaments(tData);
+        if (
+          tData.length &&
+          (tournamentId == null || !tData.find((t) => t.id === tournamentId))
+        ) {
+          setTournamentId(tData[0].id);
+        }
       } catch (e) {
-        if (alive) setErr('Не удалось загрузить календарь матчей');
+        console.error(e);
+        if (alive) setErr('Не удалось загрузить список турниров');
       } finally {
         if (alive) setLoading(false);
       }
@@ -99,74 +131,111 @@ export default function CalendarPage() {
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // списки значений для селектов
+  /* ============== при смене турнира тянем его матчи + команды ============== */
+  useEffect(() => {
+    if (!tournamentId) return;
+    let alive = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setErr('');
+
+        const [teamsRes, matchesRes] = await Promise.all([
+          axios.get(`${serverConfig}/tournaments/${tournamentId}/teams`),
+          axios.get(`${serverConfig}/tournaments/${tournamentId}/matches`, {
+            params: {
+              include: 'tournament,team1,team2,stadium,round',
+              sort: JSON.stringify(['date', 'DESC']),
+              range: JSON.stringify([0, 999]),
+            },
+          }),
+        ]);
+
+        if (!alive) return;
+
+        const teamsData = Array.isArray(teamsRes.data) ? teamsRes.data : [];
+        setTournamentTeams(teamsData);
+
+        const matchesData = Array.isArray(matchesRes.data)
+          ? matchesRes.data
+          : [];
+        // на всякий — сортировка по дате (новые сверху)
+        matchesData.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setMatches(matchesData);
+
+        // сбросим фильтры команды/сезона на ALL при переключении турнира
+        setTeamId('ALL');
+        setSeason('ALL');
+        setPage(1);
+      } catch (e) {
+        console.error(e);
+        if (alive) setErr('Не удалось загрузить данные турнира');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [tournamentId]);
+
+  /* ================= селекты ================= */
   const teamOptions = useMemo(() => {
-    const opts = teams.map((t) => ({ value: String(t.id), label: t.title }));
-    return [{ value: 'ALL', label: 'Все команды' }, ...opts];
-  }, [teams]);
+    // строим из участников текущего турнира
+    const opts = tournamentTeams
+      .map((tt) => tt.team)
+      .filter(Boolean)
+      .map((t) => ({ value: String(t.id), label: t.title }));
+    // удалим дубли (на всякий)
+    const seen = new Set();
+    const uniq = opts.filter((o) => !seen.has(o.value) && seen.add(o.value));
+    return [{ value: 'ALL', label: 'Все команды' }, ...uniq];
+  }, [tournamentTeams]);
 
   const seasonOptions = useMemo(() => {
     const set = new Set();
-    matches.forEach((m) => {
-      if (m?.league?.season) set.add(m.league.season);
-      else if (m?.date) set.add(new Date(m.date).getFullYear().toString());
-    });
+    matches.forEach((m) => set.add(getSeason(m)));
+    set.delete('');
     const arr = Array.from(set).sort((a, b) => (a < b ? 1 : -1));
     return ['ALL', ...arr];
   }, [matches]);
 
-  const leagueOptions = useMemo(() => {
-    const map = new Map();
-    matches.forEach((m) => {
-      if (m?.league) map.set(String(m.league.id), m.league.title);
-    });
-    const arr = Array.from(map.entries()).sort((a, b) =>
-      a[1].localeCompare(b[1], 'ru')
-    );
-    return [['ALL', 'Все турниры'], ...arr];
-  }, [matches]);
+  const tournamentOptions = useMemo(() => {
+    return tournaments
+      .map((t) => [String(t.id), t.title])
+      .sort((a, b) => a[1].localeCompare(b[1], 'ru'));
+  }, [tournaments]);
 
-  // применение фильтров
+  /* ================= применение фильтров ================= */
   const filtered = useMemo(() => {
-    let list = matches;
+    let list = matches.slice();
 
     if (teamId !== 'ALL') {
       const tid = Number(teamId);
-      list = list.filter((m) => m.homeTeamId === tid || m.guestTeamId === tid);
+      list = list.filter((m) => getT1Id(m) === tid || getT2Id(m) === tid);
     }
 
     if (season !== 'ALL') {
-      list = list.filter((m) => {
-        const s = m?.league?.season
-          ? String(m.league.season)
-          : m?.date
-          ? String(new Date(m.date).getFullYear())
-          : '';
-        return s === String(season);
-      });
-    }
-
-    if (leagueId !== 'ALL') {
-      list = list.filter((m) => String(m?.league?.id) === String(leagueId));
+      list = list.filter((m) => getSeason(m) === String(season));
     }
 
     return list;
-  }, [matches, teamId, season, leagueId]);
+  }, [matches, teamId, season]);
 
-  // сбрасываем страницу при смене фильтров
+  // сброс страницы при смене фильтров
   useEffect(() => {
     setPage(1);
-  }, [teamId, season, leagueId]);
+  }, [teamId, season]);
 
-  // расчёт страниц
+  // расчёт страниц/срез
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [totalPages, page]);
 
-  // текущий срез карточек
   const paged = useMemo(() => {
     const start = (page - 1) * PER_PAGE;
     return filtered.slice(start, start + PER_PAGE);
@@ -185,7 +254,6 @@ export default function CalendarPage() {
       byKey.get(key).push(m);
     });
 
-    // в массив, новые месяцы сверху
     return Array.from(byKey.entries())
       .sort((a, b) => (a[0] < b[0] ? 1 : -1))
       .map(([key, items]) => {
@@ -197,29 +265,6 @@ export default function CalendarPage() {
       });
   }, [paged]);
 
-  // форматтеры
-  const fmtCellDate = (iso) => {
-    const d = new Date(iso);
-    const date = new Intl.DateTimeFormat('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-    })
-      .format(d)
-      .replace(' г.', '');
-    const time = d.toLocaleTimeString('ru-RU', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'short' })
-      .format(d)
-      .replace('.', '')
-      .toUpperCase();
-    return { date, time, weekday };
-  };
-
-  const teamLogo = (team) =>
-    team?.logo?.[0] ? `${uploadsConfig}${team.logo[0]}` : null;
-
   const Pagination = () => {
     if (totalPages <= 1) return null;
     const go = (p) => {
@@ -227,53 +272,26 @@ export default function CalendarPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     return (
-      <div className={classes.pagination} style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-        <button
-          onClick={() => go(Math.max(1, page - 1))}
-          disabled={page === 1}
-          style={{
-            padding: '8px 12px',
-            borderRadius: 8,
-            border: '1px solid #e62d3c',
-            background: page === 1 ? '#f5f5f5' : '#fff',
-            cursor: page === 1 ? 'not-allowed' : 'pointer',
-            fontWeight: 600,
-          }}
-        >
+      <div
+        className={classes.pagination}
+        style={{
+          display: 'flex',
+          gap: 8,
+          justifyContent: 'center',
+          marginTop: 16,
+        }}
+      >
+        <button onClick={() => go(Math.max(1, page - 1))} disabled={page === 1}>
           ‹ Пред
         </button>
-
         {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-          <button
-            key={p}
-            onClick={() => go(p)}
-            style={{
-              minWidth: 36,
-              height: 36,
-              padding: '0 10px',
-              borderRadius: 8,
-              border: '1px solid #e62d3c',
-              background: p === page ? '#e62d3c' : '#fff',
-              color: p === page ? '#fff' : '#111827',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
+          <button key={p} onClick={() => go(p)}>
             {p}
           </button>
         ))}
-
         <button
           onClick={() => go(Math.min(totalPages, page + 1))}
           disabled={page === totalPages}
-          style={{
-            padding: '8px 12px',
-            borderRadius: 8,
-            border: '1px solid #e62d3c',
-            background: page === totalPages ? '#f5f5f5' : '#fff',
-            cursor: page === totalPages ? 'not-allowed' : 'pointer',
-            fontWeight: 600,
-          }}
         >
           След ›
         </button>
@@ -283,202 +301,212 @@ export default function CalendarPage() {
 
   if (loading) return <div className={classes.pageWrap}>Загрузка…</div>;
   if (err) return <div className={classes.pageWrap}>{err}</div>;
+  if (!tournaments.length)
+    return <div className={classes.pageWrap}>Турниры не найдены</div>;
 
   return (
-    <>
-      <div className={classes.container}>
-        <div className={classes.pageWrap}>
-          <div className={classes.header}>
-            <h1>КАЛЕНДАРЬ МАТЧЕЙ</h1>
+    <div className={classes.container}>
+      <div className={classes.pageWrap}>
+        <div className={classes.header}>
+          <h1>КАЛЕНДАРЬ МАТЧЕЙ</h1>
 
-            <div className={classes.filters}>
-              <label className={classes.filter}>
-                <span>Команда</span>
-                <select
-                  value={teamId}
-                  onChange={(e) => setTeamId(e.target.value)}
-                >
-                  {teamOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className={classes.filter}>
-                <span>Сезон</span>
-                <select
-                  value={season}
-                  onChange={(e) => setSeason(e.target.value)}
-                >
-                  {seasonOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s === 'ALL' ? 'Все сезоны' : s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
+          <div className={classes.filters}>
+            {/* Турнир */}
+            {tournamentOptions.length > 0 && (
               <label className={classes.filter}>
                 <span>Турнир</span>
                 <select
-                  value={leagueId}
-                  onChange={(e) => setLeagueId(e.target.value)}
+                  value={tournamentId ?? ''}
+                  onChange={(e) => setTournamentId(Number(e.target.value))}
                 >
-                  {leagueOptions.map(([id, title]) => (
+                  {tournamentOptions.map(([id, title]) => (
                     <option key={id} value={id}>
                       {title}
                     </option>
                   ))}
                 </select>
               </label>
-            </div>
+            )}
+
+            {/* Команда (из участников турнира) */}
+            <label className={classes.filter}>
+              <span>Команда</span>
+              <select
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+              >
+                {teamOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* Сезон (из матчей выбранного турнира) */}
+            <label className={classes.filter}>
+              <span>Сезон</span>
+              <select
+                value={season}
+                onChange={(e) => setSeason(e.target.value)}
+              >
+                {seasonOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s === 'ALL' ? 'Все сезоны' : s}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
+        </div>
 
-          <div className={classes.body}>
-            <div className={classes.games}>
-              {groups.length === 0 && (
-                <div className={classes.empty}>
-                  Матчи по выбранным фильтрам не найдены
-                </div>
-              )}
+        <div className={classes.body}>
+          {/* ЛЕВАЯ — матчи */}
+          <div className={classes.games}>
+            {groups.length === 0 && (
+              <div className={classes.empty}>
+                Матчи по выбранным фильтрам не найдены
+              </div>
+            )}
 
-              {groups.map((g) => (
-                <div key={g.key} className={classes.monthBlock}>
-                  <div className={classes.monthTitle}>{g.title}</div>
+            {groups.map((g) => (
+              <div key={g.key} className={classes.monthBlock}>
+                <div className={classes.monthTitle}>{g.title}</div>
 
-                  <div className={classes.list}>
-                    {g.items.map((m) => {
-                      const { date, time, weekday } = fmtCellDate(m.date);
-                      const homeLogo = teamLogo(m.homeTeam);
-                      const guestLogo = teamLogo(m.guestTeam);
+                <div className={classes.list}>
+                  {g.items.map((m) => {
+                    const { date, time, weekday } = fmtCellDate(m.date);
+                    const t1 = getT1(m);
+                    const t2 = getT2(m);
+                    const homeLogo = teamLogoUrl(t1);
+                    const guestLogo = teamLogoUrl(t2);
+                    const tournamentTitle = getTournamentTitle(m);
 
-                      return (
-                        <div
-                          key={m.id}
-                          className={classes.card}
-                          onClick={() => navigate(`/match/${m.id}`)}
-                        >
-                          {/* слева — дата & стадион */}
-                          <div className={classes.colDate}>
-                            <div className={classes.dateRow}>
-                              <span className={classes.date}>{date} </span>
-                              <span className={classes.time}>{time} </span>
-                              <span className={classes.weekday}>
-                                {' '}
-                                {weekday}
-                              </span>
-                            </div>
-                            <div className={classes.place}>
-                              <img src="../images/nartLocation.svg" alt="" />
-                              <span>{m.stadium}</span>
-                            </div>
+                    return (
+                      <div
+                        key={m.id}
+                        className={classes.card}
+                        onClick={() => navigate(`/match/${m.id}`)}
+                      >
+                        {/* слева — дата & стадион */}
+                        <div className={classes.colDate}>
+                          <div className={classes.dateRow}>
+                            <span className={classes.date}>{date} </span>
+                            <span className={classes.time}>{time} </span>
+                            <span className={classes.weekday}> {weekday}</span>
                           </div>
-
-                          {/* центр — эмблемы и счёт */}
-                          <div className={classes.colScore}>
-                            <div className={classes.team}>
-                              {homeLogo ? (
-                                <img
-                                  src={homeLogo}
-                                  alt={m?.homeTeam?.title}
-                                  className={classes.logo}
-                                />
-                              ) : (
-                                <div className={classes.logoStub}>H</div>
-                              )}
-                              <span className={classes.teamName1}>
-                                {m?.homeTeam?.title}
-                              </span>
-                            </div>
-
-                            <div className={classes.score}>
-                              {m.homeScore} : {m.guestScore}
-                            </div>
-
-                            <div className={classes.team}>
-                              {guestLogo ? (
-                                <img
-                                  src={guestLogo}
-                                  alt={m?.guestTeam?.title}
-                                  className={classes.logo}
-                                />
-                              ) : (
-                                <div className={classes.logoStub}>G</div>
-                              )}
-                              <span className={classes.teamName1}>
-                                {m?.guestTeam?.title}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* справа — турнир и тур */}
-                          <div className={classes.colMeta}>
-                            <div className={classes.league}>
-                              {m?.league?.title}
-                            </div>
-                            <div className={classes.round}>{m.round} тур</div>
+                          <div className={classes.place}>
+                            <img src="../images/nartLocation.svg" alt="" />
+                            <span>{getStadiumName(m) || '—'}</span>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
 
-              <Pagination />
+                        {/* центр — эмблемы и счёт */}
+                        <div className={classes.colScore}>
+                          <div className={classes.team}>
+                            {homeLogo ? (
+                              <img
+                                src={homeLogo}
+                                alt={t1?.title}
+                                className={classes.logo}
+                              />
+                            ) : (
+                              <div className={classes.logoStub}>H</div>
+                            )}
+                            <span className={classes.teamName1}>
+                              {t1?.title || `#${getT1Id(m)}`}
+                            </span>
+                          </div>
+
+                          <div className={classes.score}>
+                            {getScore1(m)} : {getScore2(m)}
+                          </div>
+
+                          <div className={classes.team}>
+                            {guestLogo ? (
+                              <img
+                                src={guestLogo}
+                                alt={t2?.title}
+                                className={classes.logo}
+                              />
+                            ) : (
+                              <div className={classes.logoStub}>G</div>
+                            )}
+                            <span className={classes.teamName1}>
+                              {t2?.title || `#${getT2Id(m)}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* справа — турнир и раунд */}
+                        <div className={classes.colMeta}>
+                          <div className={classes.league /* оставил класс */}>
+                            {tournamentTitle}
+                          </div>
+                          <div className={classes.round}>
+                            {getRoundTitle(m)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            <Pagination />
+          </div>
+
+          {/* ПРАВАЯ — участники турнира */}
+          <div className={classes.standings}>
+            <div className={classes.standingsHeader}>
+              <span className={classes.containerBlockRightTopTitle}>
+                УЧАСТНИКИ ТУРНИРА
+              </span>
             </div>
 
-            <div className={classes.standings}>
-              <div className={classes.standingsHeader}>
-                <span className={classes.containerBlockRightTopTitle}>
-                  ТУРНИРНАЯ ТАБЛИЦА
-                </span>
+            <div className={classes.standingsTable}>
+              <div className={classes.headerRow}>
+                <span>№</span>
+                <span>Команда</span>
+                <span>Посев</span>
+                <span></span>
               </div>
-              {leagues.length > 0 && (
-                <select
-                  value={selectedLeague || ''}
-                  onChange={(e) => setSelectedLeague(Number(e.target.value))}
-                  className={classes.leagueSelect}
-                >
-                  {leagues.map((league) => (
-                    <option key={league.id} value={league.id}>
-                      {league.title}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <div className={classes.standingsTable}>
-                <div className={classes.headerRow}>
-                  <span>№</span>
-                  <span>Команда</span>
-                  <span>И</span>
-                  <span>О</span>
-                </div>
 
-                {filteredStandings.map((row, idx) => (
+              {tournamentTeams
+                .slice()
+                .sort(
+                  (a, b) =>
+                    (a.seed ?? 1e9) - (b.seed ?? 1e9) ||
+                    (a.team?.title || '').localeCompare(b.team?.title || '')
+                )
+                .map((row, idx) => (
                   <div key={row.id} className={classes.standingRow}>
                     <span>{idx + 1}</span>
                     <span className={classes.teamName}>
-                      <img
-                        src={`${uploadsConfig}${row.team.logo[0]}`}
-                        alt="guest"
-                      />
-                      {row.team.title}
+                      {row.team?.logo?.[0] ? (
+                        <img
+                          src={`${uploadsConfig}${row.team.logo[0]}`}
+                          alt={row.team?.title || 'logo'}
+                        />
+                      ) : (
+                        <span className={classes.stLogoStub} />
+                      )}
+                      {row.team?.title || '—'}
                     </span>
-                    <span>{row.played}</span>
-                    <span className={classes.points}>{row.points}</span>
+                    <span>{row.seed ?? '—'}</span>
+                    <span></span>
                   </div>
                 ))}
-                <button onClick={() => navigate('/tournamentTable')}>
-                  ПОСМОТРЕТЬ ВСЮ ТАБЛИЦУ
-                </button>
-              </div>
+
+              {/* если нужна ссылка на страницу турнира — раскомментируй/подправь роут */}
+              {/* <button onClick={() => navigate(`/tournament/${tournamentId}`)}>
+                О ТУРНИРЕ
+              </button> */}
             </div>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

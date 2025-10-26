@@ -24,6 +24,7 @@
     "express": "^5.1.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.23.5",
+    "html-to-image": "^1.11.13",
     "html2pdf.js": "^0.12.1",
     "js-cookie": "^3.0.5",
     "jszip": "^3.10.1",

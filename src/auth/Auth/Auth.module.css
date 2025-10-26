@@ -1,0 +1,75 @@
+.center_block {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 30px;
+}
+
+
+.form_product {
+  width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form_product label, option, p {
+  font-size: 16px;
+  line-height: 19.5px;
+}
+
+.form_product option {
+  cursor: pointer;
+}
+
+.form_product input, select {
+  height: 44px;
+  padding: 0 25px;
+  border: 1px solid #b4b4b4 !important;
+  border-radius: 10px !important;
+  outline: none !important;
+  font-size: 16px !important;
+}
+
+.form_product select {
+  cursor: pointer;
+}
+
+.form_product textarea {
+  padding: 16px 25px;
+  resize: none;
+  height: 200px !important;
+  border: 1px solid #b4b4b4 !important;
+  border-radius: 10px !important;
+  outline: none !important;
+  font-size: 16px !important;
+}
+
+.item {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form_product button {
+  padding: 20px 0;
+  height: 44px;
+  font-size: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: none;
+  border-radius: 10px;
+  background-color: var(--primaryColor);
+  color: #fff;
+  cursor: pointer;
+}
+
+.error {
+  text-align: center;
+  color: rgb(240, 31, 31);
+  font-weight: 600 !important;
+}

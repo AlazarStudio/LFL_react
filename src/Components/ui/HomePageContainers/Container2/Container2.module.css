@@ -3,6 +3,7 @@
   align-items: center;
   justify-content: center;
   width: 100%;
+  padding: 40px 0;
 }
 
 .containerBlock {
@@ -74,8 +75,8 @@
 }
 
 .bottom button:hover {
-  color: #fff;
-  background-color: #e62d3c;
+  color: #fff !important;
+  background-color: #e62d3c ;
   border-color: #e62d3c;
 }
 
@@ -98,7 +99,7 @@
   justify-content: center;
   font-size: 16px;
   font-weight: 500;
-  color: #fff;
+  color: #fff !important;
   background-color: #e62d3c;
   width: min-content;
   padding: 10px;
@@ -161,13 +162,13 @@
 .containerBlockStat {
   width: 31%;
   height: 100%;
-  outline: 1px solid red;
+  /* outline: 1px solid red; */
 }
 
 .containerBlockTab {
   width: 31%;
   height: 100%;
-  outline: 1px solid red;
+  /* outline: 1px solid red; */
 }
 
 :root {
@@ -232,7 +233,7 @@
 }
 
 .ghostBtn:hover {
-  color: #fff;
+  color: #fff !important;
   border: 1px solid #e62d3c;
   background-color: #e62d3c;
 }
@@ -251,7 +252,7 @@
   align-items: center;
   gap: 8px;
   background: var(--accent);
-  color: #fff;
+  color: #fff !important;
   border-radius: 999px;
   padding: 6px 12px;
   font-weight: 700;
@@ -340,7 +341,7 @@
 }
 .segActive {
   background: var(--accent);
-  color: #fff;
+  color: #fff !important;
 }
 
 /* ——— ТАБЛИЦА СТАТИСТИКИ ——— */

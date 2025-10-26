@@ -288,7 +288,7 @@ export default function TournamentTiesTab({ tournamentId }) {
                     Пересчитать
                   </button>
                   <button
-                    className="btn btn--sm btn--danger"
+                    className="btn btn--sm "
                     onClick={() => remove(t.id)}
                   >
                     Удалить

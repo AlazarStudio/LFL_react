@@ -84,11 +84,13 @@
 .date {
   font-size: 28px;
   font-weight: 500;
+  color: #fff !important;
 }
 
 .title {
   font-size: 36px;
   font-weight: 600;
+  color: #fff !important;
   /* outline: 1px solid #fff; */
 }
 
@@ -183,6 +185,17 @@
   height: 58px;
   overflow: hidden;
   /* outline: 1px solid red; */
+}
+
+.videoBox {
+  width: 400px;
+  height: 400px;
+  margin-top: 20px;
+}
+
+.videoBox video {
+  width: 100%;
+  height: 100%;
 }
 
 @media (max-width: 768px) {
@@ -300,11 +313,11 @@
     cursor: pointer;
   }
 
-  .card img {
+  .cardMedia img {
     width: 100%;
     height: 279px;
     object-fit: cover;
-    border-radius: 20px;
+    border-radius: 10px !important;
   }
 
   .cardBody {
