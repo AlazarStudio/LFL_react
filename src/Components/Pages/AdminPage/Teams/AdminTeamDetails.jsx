@@ -12,21 +12,24 @@ const ASSETS_BASE = String(uploadsConfig || '').replace(/\/api\/?$/, '');
 const buildSrc = (p) =>
   !p ? '' : /^https?:\/\//i.test(p) ? p : `${ASSETS_BASE}${p}`;
 
-const FIELD_POSITIONS = [
-  'GK',
-  'RB',
-  'CB',
-  'LB',
-  'RWB',
-  'LWB',
-  'DM',
-  'CM',
-  'AM',
-  'RW',
-  'LW',
-  'SS',
-  'ST',
-];
+const POSITION_LABEL = {
+  GK: 'Вратарь',
+  RB: 'Правый защитник',
+  CB: 'Центральный защитник',
+  LB: 'Левый защитник',
+  RWB: 'Правый винг-бэк',
+  LWB: 'Левый винг-бэк',
+  DM: 'Опорный полузащитник',
+  CM: 'Центральный полузащитник',
+  AM: 'Атакующий полузащитник',
+  RW: 'Правый вингер',
+  LW: 'Левый вингер',
+  SS: 'Под нападающим',
+  ST: 'Нападающий',
+};
+
+const FIELD_POSITIONS = Object.keys(POSITION_LABEL);
+const posLabel = (code) => POSITION_LABEL[code] || code || '—';
 
 export default function AdminTeamDetails() {
   const { id } = useParams();
@@ -470,7 +473,7 @@ export default function AdminTeamDetails() {
                     <option value="">—</option>
                     {FIELD_POSITIONS.map((p) => (
                       <option key={p} value={p}>
-                        {p}
+                        {posLabel(p)}
                       </option>
                     ))}
                   </select>
@@ -593,7 +596,7 @@ export default function AdminTeamDetails() {
                       )}
                     </div>
                     <div className="cell-strong">{p.name}</div>
-                    <div>{p.position || '—'}</div>
+                    <div>{posLabel(p.position)}</div>
                     <div>{p.number ?? '—'}</div>
                     <div>
                       {p.birthDate ? String(p.birthDate).slice(0, 10) : '—'}

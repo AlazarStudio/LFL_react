@@ -1,70 +1,86 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import axios from 'axios';
 import classes from './OneMediaPage.module.css';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { images as albums } from '../../../../bd'; // ⚠️ проверь путь
+import serverConfig from '../../../serverConfig'; // например: http://localhost:5000/api
+import uploadsConfig from '../../../uploadsConfig'; // например: http://localhost:5000
 
 const PAGE_SIZE = 12;
+const ASSETS_BASE = String(uploadsConfig || '').replace(/\/api\/?$/, '');
+const buildSrc = (p) =>
+  !p ? '' : /^https?:\/\//i.test(p) ? p : `${ASSETS_BASE}${p}`;
 
 export default function OneMediaPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // альбом
-  const album = useMemo(
-    () =>
-      Array.isArray(albums)
-        ? albums.find((a) => String(a.id) === String(id))
-        : null,
-    [id]
-  );
+  const [album, setAlbum] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
 
-  const photos = useMemo(
-    () => (Array.isArray(album?.images) ? album.images.filter(Boolean) : []),
-    [album]
-  );
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setErr('');
+    (async () => {
+      try {
+        const { data } = await axios.get(`${serverConfig}/images/${id}`);
+        if (!alive) return;
+        setAlbum(data || null);
+      } catch (e) {
+        if (!alive) return;
+        setErr('Альбом не найден');
+        setAlbum(null);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [id]);
 
-  // страница из URL
+  const photos = useMemo(() => {
+    const arr = Array.isArray(album?.images)
+      ? album.images.filter(Boolean)
+      : [];
+    return arr.map(buildSrc);
+  }, [album]);
+
   const initialPage = Math.max(
     1,
     parseInt(searchParams.get('page') || '1', 10)
   );
   const [page, setPage] = useState(initialPage);
-
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(photos.length / PAGE_SIZE)),
     [photos.length]
   );
 
-  // следим, чтобы страница была в диапазоне
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
     if (page < 1) setPage(1);
   }, [page, totalPages]);
 
-  // пишем текущую страницу в URL
   useEffect(() => {
     setSearchParams({ page: String(page) }, { replace: true });
   }, [page, setSearchParams]);
 
-  // текущий срез
   const pageSlice = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return photos.slice(start, start + PAGE_SIZE).map((src, i) => ({
-      src,
-      globalIndex: start + i,
-    }));
+    return photos
+      .slice(start, start + PAGE_SIZE)
+      .map((src, i) => ({ src, globalIndex: start + i }));
   }, [photos, page]);
 
-  // —— Лайтбокс ——
+  // Лайтбокс
   const [isOpen, setIsOpen] = useState(false);
-  const [idx, setIdx] = useState(0); // глобальный индекс внутри всего альбома
-
+  const [idx, setIdx] = useState(0);
   const openAt = useCallback((globalIndex) => {
     setIdx(globalIndex);
     setIsOpen(true);
   }, []);
-
   const close = useCallback(() => setIsOpen(false), []);
   const prev = useCallback(
     () => setIdx((i) => (i - 1 + photos.length) % photos.length),
@@ -86,11 +102,12 @@ export default function OneMediaPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, close, prev, next]);
 
-  if (!album) {
+  if (loading) return <div className={classes.container}>Загрузка…</div>;
+  if (err || !album) {
     return (
       <div className={classes.container}>
         <div className={classes.notFound}>
-          Альбом не найден
+          {err || 'Альбом не найден'}
           <button
             className={classes.backBtn}
             onClick={() => navigate('/media')}
@@ -116,8 +133,14 @@ export default function OneMediaPage() {
             К альбомам
           </button>
         </div>
-        {album.date && <span className={classes.date}>{album.date}</span>}
-        {/* Сетка фотографий */}
+        {album.date && (
+          <span className={classes.date}>
+            {isNaN(Date.parse(album.date))
+              ? album.date
+              : new Date(album.date).toLocaleDateString()}
+          </span>
+        )}
+
         <div className={classes.grid}>
           {pageSlice.map(({ src, globalIndex }) => (
             <div
@@ -129,7 +152,7 @@ export default function OneMediaPage() {
               onKeyDown={(e) => e.key === 'Enter' && openAt(globalIndex)}
               title="Открыть фото"
             >
-              <img src={src} alt={`Фото ${globalIndex + 1}`} />
+              <img src={src} alt={`Фото ${globalIndex + 1}`} loading="lazy" />
             </div>
           ))}
           {pageSlice.length === 0 && (
@@ -139,7 +162,6 @@ export default function OneMediaPage() {
           )}
         </div>
 
-        {/* Пагинация */}
         {totalPages > 1 && (
           <nav className={classes.pagination} aria-label="Пагинация">
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
@@ -157,7 +179,6 @@ export default function OneMediaPage() {
           </nav>
         )}
 
-        {/* Лайтбокс */}
         {isOpen && photos.length > 0 && (
           <div className={classes.lightbox} onClick={close}>
             <div

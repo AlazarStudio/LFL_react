@@ -1,12 +1,13 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import './AdminSidebar.css';
 
 export default function AdminSidebar() {
+  const navigate = useNavigate();
   return (
     <aside className="sidebar">
       <div className="sidebar__logo">
-        <img src="../images/logoLFL.svg" />
+        <img src="/images/logoLFL.svg" onClick={() => navigate('/')} />
       </div>
       <nav className="sidebar__nav">
         <NavLink

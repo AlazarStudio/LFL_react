@@ -13,18 +13,112 @@ export default function ClubPage() {
 
   const navigate = useNavigate();
   const { hash, search } = useLocation();
-  const { id: routeId } = useParams?.() || {}; // поддержка /club/:id, если роут настроен
+  const { id: routeId } = useParams() || {};
   const teamBlockRef = useRef(null);
+
+  // ====== assets helpers (фикс логотипов) ======
+  const ASSETS_BASE = String(uploadsConfig || '').replace(/\/api\/?$/, '');
+  const buildSrc = (p) => {
+    const s = String(p || '').trim();
+    if (!s) return '';
+    if (/^https?:\/\//i.test(s)) return s; // уже абсолютный URL
+    const needsSlash = s.startsWith('/') ? '' : '/';
+    return `${ASSETS_BASE}${needsSlash}${s}`; // относительные -> к базе без /api
+  };
 
   // --- календарь ---
   const [matches, setMatches] = useState([]);
-  const [type, setType] = useState('FINISHED'); // <-- ПРОШЕДШИЕ по умолчанию
+  const [type, setType] = useState('SCHEDULED'); // как в Container1
   const [index, setIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [perPage, setPerPage] = useState(window.innerWidth <= 768 ? 1 : 3);
+  const [paused, setPaused] = useState(false);
   const sliderRef = useRef(null);
-  const touchStartX = useRef(0);
-  const touchEndX = useRef(0);
+  const animRef = useRef(false);
+  useEffect(() => {
+    animRef.current = isAnimating;
+  }, [isAnimating]);
+
+  // ===== helpers для матчей =====
+  const pickLogo = (team) => {
+    if (!team) return '';
+    const l = team.logo;
+    if (Array.isArray(l)) return l[0] || '';
+    if (typeof l === 'string') return l;
+    return team.logoPath || team.badge || '';
+  };
+
+  const normalizeMatch = (m) => {
+    const team1 = m.team1 || m.homeTeam || m.team1Obj || m.home_team || null;
+    const team2 =
+      m.team2 || m.guestTeam || m.team2Obj || m.awayTeam || m.away_team || null;
+    const league = m.league || m.leagueObj || null;
+    const stadiumObj = m.stadium || m.stadiumObj || null;
+
+    const homeScore = Number.isFinite(Number(m.homeScore))
+      ? Number(m.homeScore)
+      : Number.isFinite(Number(m.team1Score))
+      ? Number(m.team1Score)
+      : Number.isFinite(Number(m.home_score))
+      ? Number(m.home_score)
+      : 0;
+
+    const guestScore = Number.isFinite(Number(m.guestScore))
+      ? Number(m.guestScore)
+      : Number.isFinite(Number(m.team2Score))
+      ? Number(m.team2Score)
+      : Number.isFinite(Number(m.guest_score))
+      ? Number(m.guest_score)
+      : 0;
+
+    return {
+      id: m.id,
+      date: m.date,
+      status: m.status || 'SCHEDULED',
+      round: m.round ?? m.roundNumber ?? m.matchday ?? m.round_number ?? '',
+      homeScore,
+      guestScore,
+      homeTeam: team1
+        ? {
+            id: team1.id ?? m.team1Id ?? m.homeTeamId ?? m.home_team_id,
+            title:
+              team1.title || team1.name || `#${team1.id ?? m.team1Id ?? ''}`,
+            logo: [pickLogo(team1)].filter(Boolean),
+          }
+        : {
+            id: m.team1Id,
+            title: m.team1Title || `#${m.team1Id ?? ''}`,
+            logo: [],
+          },
+      guestTeam: team2
+        ? {
+            id: team2.id ?? m.team2Id ?? m.awayTeamId ?? m.away_team_id,
+            title:
+              team2.title || team2.name || `#${team2.id ?? m.team2Id ?? ''}`,
+            logo: [pickLogo(team2)].filter(Boolean),
+          }
+        : {
+            id: m.team2Id,
+            title: m.team2Title || `#${m.team2Id ?? ''}`,
+            logo: [],
+          },
+      league: {
+        title:
+          league?.title ||
+          league?.name ||
+          m.leagueTitle ||
+          (typeof m.league === 'string' ? m.league : '') ||
+          '',
+      },
+      stadium:
+        (typeof stadiumObj === 'string'
+          ? stadiumObj
+          : stadiumObj?.name || stadiumObj?.title) ||
+        m.stadiumName ||
+        m.stadium ||
+        '',
+    };
+  };
 
   // --- состав ---
   const [players, setPlayers] = useState([]);
@@ -73,7 +167,24 @@ export default function ClubPage() {
     FAN_LIAISON: 'СОТРУДНИК ПО РАБОТЕ С БОЛЕЛЬЩИКАМИ',
   };
 
-  const posToRu = (p) => posRu[p] || p || '—';
+  const POS_TO_ROLE = {
+    GK: 'GOALKEEPER',
+    RB: 'DEFENDER',
+    CB: 'DEFENDER',
+    LB: 'DEFENDER',
+    RWB: 'DEFENDER',
+    LWB: 'DEFENDER',
+    DM: 'MIDFIELDER',
+    CM: 'MIDFIELDER',
+    AM: 'MIDFIELDER',
+    RW: 'MIDFIELDER',
+    LW: 'MIDFIELDER',
+    SS: 'FORWARD',
+    ST: 'FORWARD',
+  };
+  const toRole = (code) => POS_TO_ROLE[code] || code;
+  const posToRu = (p) => posRu[toRole(p)] || p || '—';
+
   const norm = (s) => (s ?? '').toString().trim().toLocaleLowerCase('ru-RU');
   const slugify = (title = '') =>
     norm(title)
@@ -108,7 +219,7 @@ export default function ClubPage() {
     }
   }, [hash, search]);
 
-  // ===== ЗАГРУЗКА КОМАНДЫ ПО id/слагу из URL (если роут /club/:id). Если нет — прежняя логика «Нарт» =====
+  // ===== загрузка команды
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -119,7 +230,6 @@ export default function ClubPage() {
         let found = null;
 
         if (routeId) {
-          // 1) пробуем как числовой id
           const numericId = Number(routeId);
           const looksNumeric =
             Number.isFinite(numericId) && String(numericId) === String(routeId);
@@ -131,7 +241,6 @@ export default function ClubPage() {
           }
         }
 
-        // 2) slug/название или fallback на «Нарт»
         if (!found) {
           const teamsRes = await axios.get(`${serverConfig}/teams`);
           const rows = Array.isArray(teamsRes.data) ? teamsRes.data : [];
@@ -148,7 +257,6 @@ export default function ClubPage() {
               if (byIncludes) found = byIncludes;
             }
           } else {
-            // старое поведение (команда Нарт)
             const exact = rows.find((t) => norm(t.title) === 'нарт');
             found =
               exact || rows.find((t) => norm(t.title).includes('нарт')) || null;
@@ -166,12 +274,13 @@ export default function ClubPage() {
         if (alive) setLoading(false);
       }
     })();
+
     return () => {
       alive = false;
     };
   }, [routeId]);
 
-  // загрузка матчей (фильтруем по выбранной команде)
+  // ===== загрузка матчей для выбранной команды
   useEffect(() => {
     if (!team?.id) {
       setMatches([]);
@@ -180,36 +289,60 @@ export default function ClubPage() {
     let alive = true;
     (async () => {
       try {
-        // если бэкенд умеет фильтр — это лучший вариант:
-        // const res = await axios.get(`${serverConfig}/matches`, {
-        //   params: { filter: JSON.stringify({ OR: [{ homeTeamId: team.id }, { awayTeamId: team.id }] }) }
-        // });
-
-        const res = await axios.get(`${serverConfig}/matches`);
-        const rows = Array.isArray(res.data) ? res.data : [];
+        let rows = [];
+        // пытаемся получить матчи с вложенными командами (для логотипов)
+        try {
+          const resInc = await axios.get(`${serverConfig}/matches`, {
+            params: { include: 'team1,team2,league,stadium' },
+          });
+          rows = Array.isArray(resInc.data) ? resInc.data : [];
+        } catch {
+          const res = await axios.get(`${serverConfig}/matches`);
+          rows = Array.isArray(res.data) ? res.data : [];
+        }
 
         const onlyTeam = rows.filter((m) => {
-          const hId =
-            m.homeTeamId ?? m.home_team_id ?? m.homeTeam?.id ?? m.home_team?.id;
-          const aId =
-            m.awayTeamId ?? m.away_team_id ?? m.awayTeam?.id ?? m.away_team?.id;
-          return (
-            Number(hId) === Number(team.id) || Number(aId) === Number(team.id)
-          );
+          const ids = [
+            m.homeTeamId,
+            m.home_team_id,
+            m.homeTeam?.id,
+            m.home_team?.id,
+            m.hostTeamId,
+            m.host_team_id,
+            m.hostTeam?.id,
+            m.host_team?.id,
+            m.awayTeamId,
+            m.away_team_id,
+            m.awayTeam?.id,
+            m.away_team?.id,
+            m.guestTeamId,
+            m.guest_team_id,
+            m.guestTeam?.id,
+            m.guest_team?.id,
+            m.team1Id,
+            m.team1?.id,
+            m.team2Id,
+            m.team2?.id,
+          ]
+            .filter((v) => v != null)
+            .map(Number);
+          return ids.some((id) => id === Number(team.id));
         });
 
-        if (alive) setMatches(onlyTeam);
-      } catch (err) {
-        console.error('Ошибка загрузки матчей:', err);
+        const normalized = onlyTeam.map(normalizeMatch);
+        if (alive) setMatches(normalized);
+      } catch (e) {
+        console.error('Ошибка загрузки матчей:', e);
         if (alive) setMatches([]);
       }
     })();
+
     return () => {
       alive = false;
     };
   }, [team?.id]);
 
-  // загрузка игроков
+  // ===== загрузка игроков
   useEffect(() => {
     if (!team?.id) return;
     let alive = true;
@@ -225,7 +358,9 @@ export default function ClubPage() {
           res = await axios.get(`${serverConfig}/players`);
         }
         const rows = Array.isArray(res.data) ? res.data : [];
-        const onlyTeam = rows.filter((p) => p.teamId === team.id);
+        const onlyTeam = rows.filter(
+          (p) => Number(p.teamId ?? p.team_id) === Number(team.id)
+        );
         if (alive) setPlayers(onlyTeam);
       } catch (e) {
         console.error('Ошибка загрузки игроков:', e);
@@ -263,77 +398,140 @@ export default function ClubPage() {
     };
   }, [team, standings]);
 
-  // ——— календари —
+  // ——— фильтрация и слайды (как в Container1) ———
   const filtered = useMemo(() => {
-    const now = new Date();
+    const nowTs = Date.now();
+    const isFinished = (m) => {
+      if (m.status) return m.status === 'FINISHED';
+      const hasScore =
+        Number.isFinite(Number(m.homeScore)) &&
+        Number.isFinite(Number(m.guestScore));
+      if (hasScore) return true;
+      const ts = Date.parse(m.date);
+      return Number.isFinite(ts) && ts < nowTs;
+    };
+    const isScheduled = (m) => {
+      if (m.status) return m.status !== 'FINISHED';
+      const ts = Date.parse(m.date);
+      return Number.isFinite(ts) && ts >= nowTs;
+    };
     const list = matches.filter((m) =>
-      type === 'FINISHED' ? new Date(m.date) < now : new Date(m.date) >= now
+      type === 'FINISHED' ? isFinished(m) : isScheduled(m)
     );
-    return list.sort((a, b) => new Date(a.date) - new Date(b.date));
+    return list.sort((a, b) => {
+      const ta = Date.parse(a.date) || 0;
+      const tb = Date.parse(b.date) || 0;
+      return type === 'FINISHED' ? tb - ta : ta - tb;
+    });
   }, [matches, type]);
 
-  const slides = useMemo(() => {
-    if (filtered.length === 0) return [];
-    return [
-      ...filtered.slice(-perPage),
-      ...filtered,
-      ...filtered.slice(0, perPage),
-    ];
-  }, [filtered, perPage]);
-
   const total = filtered.length;
-  const startIndex = perPage;
 
+  const circularSlice = (arr, start, count) => {
+    if (arr.length === 0) return [];
+    return Array.from(
+      { length: count },
+      (_, i) => arr[(start + i) % arr.length]
+    );
+  };
+
+  const slides = useMemo(() => {
+    if (total === 0) return [];
+    const left = circularSlice(
+      filtered,
+      (total - (perPage % total)) % total,
+      perPage
+    );
+    const right = circularSlice(filtered, 0, perPage);
+    return [...left, ...filtered, ...right];
+  }, [filtered, perPage, total]);
+
+  const startIndex = useMemo(
+    () => (total === 0 ? 0 : perPage),
+    [perPage, total]
+  );
+  const maxRealIndex = useMemo(
+    () => (total === 0 ? 0 : perPage + total - 1),
+    [perPage, total]
+  );
+
+  // сброс позиции при изменениях
   useEffect(() => {
     setIndex(startIndex);
-  }, [filtered, type, perPage]);
+    if (sliderRef.current) {
+      sliderRef.current.style.transition = 'none';
+      sliderRef.current.style.transform = `translateX(-${
+        startIndex * (100 / perPage)
+      }%)`;
+      requestAnimationFrame(() => {
+        if (sliderRef.current) sliderRef.current.style.transition = '';
+      });
+    }
+  }, [startIndex, perPage, total, type]);
 
+  // навигация
   const handleNext = () => {
-    if (isAnimating) return;
+    if (total === 0 || isAnimating) return;
     setIsAnimating(true);
     setIndex((prev) => prev + 1);
   };
   const handlePrev = () => {
-    if (isAnimating) return;
+    if (total === 0 || isAnimating) return;
     setIsAnimating(true);
     setIndex((prev) => prev - 1);
   };
 
   const handleTransitionEnd = () => {
     setIsAnimating(false);
-    if (!sliderRef.current) return;
-    if (index >= total + perPage) {
-      setIndex(startIndex);
-      sliderRef.current.style.transition = 'none';
-      requestAnimationFrame(() => {
+    if (total === 0) return;
+
+    if (index > maxRealIndex) {
+      const newIndex = index - total;
+      setIndex(newIndex);
+      if (sliderRef.current) {
+        sliderRef.current.style.transition = 'none';
         sliderRef.current.style.transform = `translateX(-${
-          startIndex * (100 / perPage)
+          newIndex * (100 / perPage)
         }%)`;
-      });
-    }
-    if (index <= 0) {
-      setIndex(total);
-      sliderRef.current.style.transition = 'none';
-      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (sliderRef.current) sliderRef.current.style.transition = '';
+        });
+      }
+    } else if (index < perPage) {
+      const newIndex = index + total;
+      setIndex(newIndex);
+      if (sliderRef.current) {
+        sliderRef.current.style.transition = 'none';
         sliderRef.current.style.transform = `translateX(-${
-          total * (100 / perPage)
+          newIndex * (100 / perPage)
         }%)`;
-      });
+        requestAnimationFrame(() => {
+          if (sliderRef.current) sliderRef.current.style.transition = '';
+        });
+      }
     }
   };
 
+  // обновляем transform/transition
   useEffect(() => {
     if (!sliderRef.current) return;
-    sliderRef.current.style.transition = isAnimating
-      ? 'transform 0.5s ease-in-out'
-      : 'none';
+    const hasTransition =
+      sliderRef.current.style.transition &&
+      sliderRef.current.style.transition !== 'none';
+    if (isAnimating && !hasTransition) {
+      sliderRef.current.style.transition = 'transform 0.5s ease-in-out';
+    }
     sliderRef.current.style.transform = `translateX(-${
       index * (100 / perPage)
     }%)`;
   }, [index, perPage, isAnimating]);
 
+  // touch + autoplay с паузой
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
   const onTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
+    setPaused(true);
   };
   const onTouchMove = (e) => {
     touchEndX.current = e.touches[0].clientX;
@@ -341,22 +539,36 @@ export default function ClubPage() {
   const onTouchEnd = () => {
     const delta = touchStartX.current - touchEndX.current;
     if (Math.abs(delta) > 50) delta > 0 ? handleNext() : handlePrev();
+    setPaused(false);
   };
 
-  const activeIndex = total > 0 ? (index - perPage + total) % total : 0;
+  useEffect(() => {
+    if (paused || total === 0) return;
+    const id = setInterval(() => {
+      if (!animRef.current) handleNext();
+    }, 3000);
+    return () => clearInterval(id);
+  }, [paused, total, type]);
 
-  // ——— состав —
+  const activeIndex =
+    total > 0 ? (((index - perPage) % total) + total) % total : 0;
+
+  // ——— состав ———
   const filteredPlayers = useMemo(() => {
     const roster = players || [];
-    const onlyPlayers = roster.filter((p) => PLAYER_POS.includes(p.position));
-    const onlyStaff = roster.filter((p) => STAFF_POS.includes(p.position));
+    const onlyPlayers = roster.filter((p) =>
+      PLAYER_POS.includes(toRole(p.position))
+    );
+    const onlyStaff = roster.filter((p) =>
+      STAFF_POS.includes(toRole(p.position))
+    );
 
     switch (tab) {
       case 'GOALKEEPER':
       case 'DEFENDER':
       case 'MIDFIELDER':
       case 'FORWARD':
-        return onlyPlayers.filter((p) => p.position === tab);
+        return onlyPlayers.filter((p) => toRole(p.position) === tab);
       case 'STAFF':
         return onlyStaff;
       case 'ALL':
@@ -369,23 +581,6 @@ export default function ClubPage() {
   if ((err && !team) || !team)
     return <div style={{ padding: 16 }}>{err || 'Команда не найдена'}</div>;
 
-  // вспомогатели для календаря
-  const fmtDT = (d) => {
-    try {
-      const dt = new Date(d);
-      const date = dt
-        .toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' })
-        .toUpperCase();
-      const time = dt.toLocaleTimeString('ru-RU', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-      return { date, time };
-    } catch {
-      return { date: '', time: '' };
-    }
-  };
-
   return (
     <div className={classes.container}>
       <div className={classes.containerBlock}>
@@ -394,7 +589,7 @@ export default function ClubPage() {
           <div className={classes.containerBlockTopLeft}>
             {Array.isArray(team.images) && team.images[0] && (
               <img
-                src={`${uploadsConfig}${team.images[0]}`}
+                src={buildSrc(team.images[0])}
                 alt={team.title}
                 onError={(e) => (e.currentTarget.style.display = 'none')}
               />
@@ -405,12 +600,11 @@ export default function ClubPage() {
             <div className={classes.containerBlockTopRightTopTitle}>
               {Array.isArray(team.logo) && team.logo[0] && (
                 <img
-                  src={`${uploadsConfig}${team.logo[0]}`}
+                  src={buildSrc(team.logo[0])}
                   alt={team.title}
                   onError={(e) => (e.currentTarget.style.display = 'none')}
                 />
               )}
-
               <span>{team.title}</span>
             </div>
 
@@ -439,10 +633,10 @@ export default function ClubPage() {
         <div className={classes.containerBlockCalendar}>
           <div className={classes.containerBlockCalendarLeft}>
             <span>
-              <img src="../images/LFLcal.svg" />
+              <img src="../images/LFLcal.svg" alt="cal" />
               КАЛЕНДАРЬ
             </span>
-            <img src="../images/Line 2.svg" />
+            <img src="../images/Line 2.svg" alt="line" />
             <div className={classes.buttons}>
               <span
                 onClick={() => setType('FINISHED')}
@@ -458,10 +652,19 @@ export default function ClubPage() {
               </span>
             </div>
             <span className={classes.nav}>
-              <img src="../images/LFLleft.svg" onClick={handlePrev} />
-              <img src="../images/LFLright.svg" onClick={handleNext} />
+              <img
+                src="../images/LFLleft.svg"
+                onClick={handlePrev}
+                alt="prev"
+              />
+              <img
+                src="../images/LFLright.svg"
+                onClick={handleNext}
+                alt="next"
+              />
             </span>
           </div>
+
           <div
             className={classes.containerBlockRight}
             onTouchStart={onTouchStart}
@@ -499,6 +702,13 @@ export default function ClubPage() {
                       .padStart(2, '0');
                     const formatted = `${dayMonth} ${hours}:${minutes} ${weekday}`;
 
+                    const homeLogo = match.homeTeam?.logo?.[0]
+                      ? buildSrc(match.homeTeam.logo[0])
+                      : '../images/team-placeholder.svg';
+                    const guestLogo = match.guestTeam?.logo?.[0]
+                      ? buildSrc(match.guestTeam.logo[0])
+                      : '../images/team-placeholder.svg';
+
                     return (
                       <div
                         key={`${match.id}-${i}`}
@@ -506,7 +716,8 @@ export default function ClubPage() {
                         onClick={() => navigate(`/match/${match.id}`)}
                       >
                         <div className={classes.matchDate}>{formatted}</div>
-                        {match?.stadium && (
+
+                        {match.stadium && (
                           <div className={classes.matchStadium}>
                             <img src="../images/LFLloc.svg" alt="loc" />
                             {match.stadium}
@@ -514,28 +725,21 @@ export default function ClubPage() {
                         )}
 
                         <div className={classes.matchScore}>
-                          <img
-                            src={`${uploadsConfig}${
-                              match?.homeTeam?.logo?.[0] ?? ''
-                            }`}
-                            alt="home"
-                          />
+                          <img src={homeLogo} alt="home" />
                           <span>
                             {match.homeScore} : {match.guestScore}
                           </span>
-                          <img
-                            src={`${uploadsConfig}${
-                              match?.guestTeam?.logo?.[0] ?? ''
-                            }`}
-                            alt="guest"
-                          />
+                          <img src={guestLogo} alt="guest" />
                         </div>
+
                         <div className={classes.matchLeague}>
-                          {match?.league?.title}
+                          {match.league?.title}
                         </div>
-                        <div className={classes.matchRound}>
-                          {match.round} ТУР
-                        </div>
+                        {!!match.round && (
+                          <div className={classes.matchRound}>
+                            {match.round} ТУР
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -589,13 +793,14 @@ export default function ClubPage() {
             {filteredPlayers.map((p) => {
               const img =
                 Array.isArray(p.images) && p.images[0]
-                  ? `${uploadsConfig}${p.images[0]}`
+                  ? buildSrc(p.images[0])
                   : null;
+              const isPlayerRole = PLAYER_POS.includes(toRole(p.position));
               return (
                 <div
                   key={p.id}
                   className={classes.playerCard}
-                  onClick={() => navigate(`/playerStats/${p.id}`)} // ведём на страницу статистики игрока
+                  onClick={() => navigate(`/playerStats/${p.id}`)}
                 >
                   <div className={classes.playerThumb}>
                     {img ? (
@@ -608,21 +813,27 @@ export default function ClubPage() {
                         }
                       />
                     ) : (
-                      <div className={classes.noPhoto}>
-                        {p.name?.[0] || '?'}
-                      </div>
+                      <img
+                        src={'/images/bgPlCard.png'}
+                        alt={p.name}
+                        loading="lazy"
+                        onError={(e) =>
+                          (e.currentTarget.style.visibility = 'hidden')
+                        }
+                      />
                     )}
                   </div>
                   <div className={classes.playerInfo}>
                     <img
                       src="../images/Group 202.svg"
                       className={classes.red}
+                      alt=""
                     />
                     <div className={classes.playerPos}>
                       <span>{posToRu(p.position)}</span>
-                      {PLAYER_POS.includes(p.position) &&
-                        p.number != null &&
-                        p.number !== '' && <span> {p.number}</span>}
+                      {isPlayerRole && p.number != null && p.number !== '' && (
+                        <span> {p.number}</span>
+                      )}
                     </div>
                     <span className={classes.playerName}>{p.name}</span>
                   </div>
@@ -630,9 +841,7 @@ export default function ClubPage() {
               );
             })}
             {filteredPlayers.length === 0 && (
-              <div className={classes.emptyList}>
-         
-              </div>
+              <div className={classes.emptyList}></div>
             )}
           </div>
         </div>

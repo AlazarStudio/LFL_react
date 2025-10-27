@@ -9,6 +9,47 @@ const API_PLAYERS = `${serverConfig}/players`;
 const API_EVENTS = `${serverConfig}/matchEvents`;
 const API_REFS = `${serverConfig}/referees`;
 
+import uploadsConfig from '../../../../../uploadsConfig';
+import PosterCal from './posters/PosterCal';
+import PosterResults from './posters/PosterResults';
+import PosterTop5 from './posters/PosterTop5';
+import PosterTable from './posters/PosterTable';
+
+const ASSETS_BASE = String(uploadsConfig || '').replace(/\/api\/?$/, '');
+const buildSrc = (p) =>
+  !p ? '' : /^https?:\/\//i.test(p) ? p : `${ASSETS_BASE}${p}`;
+const teamById = (teams, id) => teams.find((t) => t.id === id) || {};
+const teamLogo = (team) => {
+  const p =
+    team?.logo?.[0]?.src ??
+    team?.logo?.[0] ??
+    team?.images?.[0]?.src ??
+    team?.images?.[0] ??
+    '';
+  return buildSrc(p);
+};
+
+const playerPhoto = (p) => {
+  const src =
+    p?.images?.[0]?.src ?? // приоритет: images[0].src
+    p?.images?.[0] ?? // или images[0] как строка
+    p?.photo?.[0]?.src ??
+    p?.photo ??
+    p?.avatar?.[0]?.src ??
+    p?.avatar ??
+    p?.image ??
+    '';
+  return buildSrc(src);
+};
+
+const fmtHM = (iso) =>
+  new Date(iso).toLocaleTimeString('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+const fmtDDMMMM = (iso) =>
+  new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+
 // ---------- справочник ролей судей ----------
 const REF_ROLES = ['MAIN', 'AR1', 'AR2', 'FOURTH', 'VAR', 'AVAR', 'OBSERVER'];
 const REF_ROLE_LABEL = {
@@ -137,6 +178,155 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
   };
   const statusRu = (s) => STATUS_RU[s] || s || '';
 
+  const [leagueTitle, setLeagueTitle] = useState('');
+  const [stadiumName, setStadiumName] = useState('');
+  const [appRoster1, setAppRoster1] = useState([]); // [{id,name,number,role}]
+  const [appRoster2, setAppRoster2] = useState([]);
+  const [showCalModal, setShowCalModal] = useState(false);
+  const [calDate, setCalDate] = useState(''); // YYYY-MM-DD
+  const posterRef = useRef(null);
+  const [posterData, setPosterData] = useState(null); // {titleDay, titleVenue, matches:[]}
+  const [posterMode, setPosterMode] = useState('cal'); // 'cal' | 'res'
+
+  function buildPosterData(dateStr) {
+    if (!dateStr) return null;
+    const dayStart = new Date(dateStr + 'T00:00:00');
+    const dayEnd = new Date(dateStr + 'T23:59:59');
+
+    const dayMatches = (matches || []).filter((m) => {
+      const d = new Date(m.date);
+      return d >= dayStart && d <= dayEnd;
+    });
+    if (!dayMatches.length) return null;
+
+    const venues = [
+      ...new Set(
+        dayMatches
+          .map((m) => stadiums.find((s) => s.id === m.stadiumId)?.name)
+          .filter(Boolean)
+      ),
+    ];
+
+    const rows = dayMatches.map((m) => {
+      const h = teamById(teams, m.team1Id);
+      const a = teamById(teams, m.team2Id);
+      return {
+        time: fmtHM(m.date),
+        home: { name: h?.title || `#${m.team1Id}`, logo: teamLogo(h) },
+        away: { name: a?.title || `#${m.team2Id}`, logo: teamLogo(a) },
+      };
+    });
+
+    return {
+      titleDay: fmtDDMMMM(dayMatches[0].date),
+      titleVenue: venues.join(', ') || '—',
+      matches: rows,
+      season: new Date(dayMatches[0].date).getFullYear(),
+    };
+  }
+
+  async function downloadCalendarJPG() {
+    setPosterMode('cal');
+    const data = buildPosterData(calDate);
+    if (!data) {
+      alert('На выбранную дату матчей нет');
+      return;
+    }
+    setPosterData(data);
+    await new Promise((r) => setTimeout(r, 0)); // дождаться рендера
+
+    const { toJpeg } = await import('html-to-image');
+    const node = posterRef.current;
+    const dataUrl = await toJpeg(node, { pixelRatio: 2, quality: 0.95 });
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `calendar_${calDate}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setPosterData(null);
+  }
+
+  async function loadLeagueRosters() {
+    try {
+      const params = new URLSearchParams({
+        include: 'team,roster,roster.player', // чтобы пришли игроки внутри roster
+      });
+      const res = await fetch(
+        `${API_LEAGUES}/${match.leagueId}/teams?${params}`
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+
+      const rows = Array.isArray(data) ? data : [];
+      const byTeamId = new Map(
+        rows.map((lt) => [lt.team?.id ?? lt.teamId, lt])
+      );
+
+      const order = { STARTER: 0, SUBSTITUTE: 1, RESERVE: 2 };
+      const pick = (teamId) => {
+        const lt = byTeamId.get(teamId);
+        const list = Array.isArray(lt?.roster) ? lt.roster : [];
+        const mapped = list
+          .map((r) => ({
+            id: r.playerId ?? r.player?.id,
+            name: r.player?.name ?? '',
+            number: r.number ?? r.player?.number ?? '',
+            role: r.role ?? 'STARTER',
+          }))
+          .filter((x) => x.id != null);
+
+        mapped.sort(
+          (a, b) =>
+            order[a.role] - order[b.role] ||
+            (a.number ?? 999) - (b.number ?? 999) ||
+            a.name.localeCompare(b.name, 'ru')
+        );
+        return mapped;
+      };
+
+      setAppRoster1(pick(match.team1Id));
+      setAppRoster2(pick(match.team2Id));
+    } catch (e) {
+      console.warn('loadLeagueRosters failed', e);
+      setAppRoster1([]);
+      setAppRoster2([]);
+    }
+  }
+
+  const toAbsMin = (e) =>
+    (Number(e.half || 1) - 1) * (Number(halfMinutes) || 45) +
+    Number(e.minute || 0);
+
+  const goalsBy = useMemo(() => {
+    const m = new Map();
+    (events || []).forEach((e) => {
+      if (e.type === 'GOAL' || e.type === 'PENALTY_SCORED') {
+        if (e.playerId)
+          m.set(e.playerId, [...(m.get(e.playerId) || []), toAbsMin(e)]);
+      }
+    });
+    return m;
+  }, [events, halfMinutes]);
+
+  const assistsBy = useMemo(() => {
+    const m = new Map();
+    (events || []).forEach((e) => {
+      if (e.assistPlayerId)
+        m.set(e.assistPlayerId, [
+          ...(m.get(e.assistPlayerId) || []),
+          toAbsMin(e),
+        ]);
+    });
+    return m;
+  }, [events, halfMinutes]);
+
+  const minsStr = (arr) =>
+    (arr || [])
+      .slice()
+      .sort((a, b) => a - b)
+      .join(', ');
+
   // --- загрузка справочников/данных
   async function loadLeague() {
     const res = await fetch(`${API_LEAGUES}/${match.leagueId}`);
@@ -144,6 +334,7 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
     if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
     setHalfMinutes(data?.halfMinutes ?? 45);
     setHalves(data?.halves ?? 2);
+    setLeagueTitle(data?.title || data?.name || '');
   }
   async function loadPlayers() {
     const qs1 = new URLSearchParams({
@@ -176,6 +367,242 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
     setReferees(Array.isArray(data) ? data : []);
+  }
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // если имя стадиона не пришло — подтянем по id
+        if (match.stadium?.name) setStadiumName(match.stadium.name);
+        else if (match.stadiumId) {
+          const r = await fetch(`${serverConfig}/stadiums/${match.stadiumId}`);
+          const d = await r.json();
+          if (r.ok) setStadiumName(d?.name || '');
+        }
+      } catch {}
+    })();
+  }, [match.stadiumId]);
+
+  // 2) хелпер для даты
+  const ruDateTime = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const date = d.toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: 'long',
+    });
+    const time = d.toLocaleTimeString('ru-RU', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    return `${date} ${time}`;
+  };
+
+  // 3) генерация DOCX заявки
+  async function downloadApplicationDocx() {
+    try {
+      setLoading(true);
+      const docx = await import('docx');
+      const {
+        Document,
+        Packer,
+        Paragraph,
+        TextRun,
+        Table,
+        TableRow,
+        TableCell,
+        WidthType,
+        AlignmentType,
+        BorderStyle,
+      } = docx;
+
+      const t1 = match.team1?.title || `#${match.team1Id}`;
+      const t2 = match.team2?.title || `#${match.team2Id}`;
+      const league = leagueTitle || 'Лига';
+      const place = stadiumName || '—';
+      const when = ruDateTime(match.date);
+
+      const P = (text, opts = {}) =>
+        new Paragraph({ children: [new TextRun(String(text || ''))], ...opts });
+
+      const noBorders = {
+        top: { style: BorderStyle.NONE },
+        bottom: { style: BorderStyle.NONE },
+        left: { style: BorderStyle.NONE },
+        right: { style: BorderStyle.NONE },
+        insideHorizontal: { style: BorderStyle.NONE },
+        insideVertical: { style: BorderStyle.NONE },
+      };
+
+      // берём из заявки лиги; если пусто — из опубликованного состава матча; если и там пусто — все игроки команды
+      const fallbackRows = (arr = []) =>
+        arr.map((p) => ({
+          number: p.number ?? '',
+          name: p.name ?? '',
+        }));
+      const asRows = (players) =>
+        players.map((p) => ({
+          number: p.number ?? '',
+          name: p.name ?? '',
+        }));
+
+      const list1 = appRoster1.length
+        ? asRows(appRoster1)
+        : lineup1.length
+        ? asRows(lineup1)
+        : fallbackRows(team1Players);
+      const list2 = appRoster2.length
+        ? asRows(appRoster2)
+        : lineup2.length
+        ? asRows(lineup2)
+        : fallbackRows(team2Players);
+
+      const NUM_ROWS = 18; // минимум строк, как на образце
+
+      const makeRosterTable = (players) => {
+        const head = new TableRow({
+          children: [
+            new TableCell({ children: [P('№')] }),
+            new TableCell({ children: [P('ФИО')] }),
+          ],
+        });
+
+        const bodyFilled = players.map(
+          (p, i) =>
+            new TableRow({
+              children: [
+                new TableCell({ children: [P(String(i + 1))] }),
+                new TableCell({ children: [P(p.name || ' ')] }),
+              ],
+            })
+        );
+
+        const needPad = Math.max(0, NUM_ROWS - players.length);
+        const padded = Array.from(
+          { length: needPad },
+          (_, k) =>
+            new TableRow({
+              children: [
+                new TableCell({
+                  children: [P(String(players.length + k + 1))],
+                }),
+                new TableCell({ children: [P(' ')] }),
+              ],
+            })
+        );
+
+        return new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [head, ...bodyFilled, ...padded],
+        });
+      };
+
+      // две колонки: заголовок = название команды, далее — таблица с игроками
+      const leftCell = new TableCell({
+        children: [
+          P(t1, { alignment: AlignmentType.CENTER }),
+          makeRosterTable(list1),
+        ],
+      });
+      const rightCell = new TableCell({
+        children: [
+          P(t2, { alignment: AlignmentType.CENTER }),
+          makeRosterTable(list2),
+        ],
+      });
+      const twoCols = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [new TableRow({ children: [leftCell, rightCell] })],
+        borders: noBorders,
+      });
+
+      const sigLine = '________________________';
+      const capsigs = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ children: [P('Подпись капитана'), P(sigLine)] }),
+              new TableCell({ children: [P('Подпись капитана'), P(sigLine)] }),
+            ],
+          }),
+        ],
+        borders: noBorders,
+      });
+
+      const refBlock = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ children: [P('Главный судья:  ФИО')] }),
+              new TableCell({ children: [P('Подпись'), P(sigLine)] }),
+            ],
+          }),
+        ],
+        borders: noBorders,
+      });
+
+      const header = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [
+                  P('Заявка на матч', { alignment: AlignmentType.LEFT }),
+                ],
+                borders: noBorders,
+              }),
+              new TableCell({
+                children: [P(league, { alignment: AlignmentType.RIGHT })],
+                borders: noBorders,
+              }),
+            ],
+          }),
+        ],
+        borders: noBorders,
+      });
+
+      const doc = new Document({
+        sections: [
+          {
+            properties: {
+              page: {
+                margin: { top: 720, right: 720, bottom: 720, left: 720 },
+              },
+            },
+            children: [
+              header,
+              P(' '),
+              P(`Место проведения: ${place}`),
+              P(`Дата проведения: ${when}`),
+              P(' '),
+              twoCols,
+              P(' '),
+              capsigs,
+              P(' '),
+              refBlock,
+            ],
+          },
+        ],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `match_${match.id}_application.docx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert('Не удалось сформировать заявку (DOCX). Проверь пакет "docx".');
+    } finally {
+      setLoading(false);
+    }
   }
 
   // Попытка загрузить участников матча (PlayerMatch → player)
@@ -355,6 +782,7 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
           loadRefs(),
           loadMatchParticipants(),
           loadEvents(),
+          loadLeagueRosters(),
         ]);
         setStatus(match.status || 'SCHEDULED');
       } catch (e) {
@@ -532,6 +960,312 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
       refereeId: '',
       description: '',
     });
+  }
+
+  async function downloadOfficialProtocolDocx() {
+    try {
+      setLoading(true);
+      const docx = await import('docx');
+      const {
+        Document,
+        Packer,
+        Paragraph,
+        TextRun,
+        Table,
+        TableRow,
+        TableCell,
+        WidthType,
+        AlignmentType,
+        BorderStyle,
+      } = docx;
+
+      const league = leagueTitle || 'Лига';
+      const place = stadiumName || '—';
+      const when = ruDateTime(match.date);
+      const t1 = match.team1?.title || `#${match.team1Id}`;
+      const t2 = match.team2?.title || `#${match.team2Id}`;
+
+      const P = (text, opts = {}) =>
+        new Paragraph({ children: [new TextRun(String(text || ''))], ...opts });
+      const noBorders = {
+        top: { style: BorderStyle.NONE },
+        bottom: { style: BorderStyle.NONE },
+        left: { style: BorderStyle.NONE },
+        right: { style: BorderStyle.NONE },
+        insideHorizontal: { style: BorderStyle.NONE },
+        insideVertical: { style: BorderStyle.NONE },
+      };
+
+      // источник игроков: заявка лиги → опубликованный состав → все игроки команды
+      const listOr = (pref, alt1, alt2) =>
+        pref?.length ? pref : alt1?.length ? alt1 : alt2 || [];
+      const L1 = listOr(appRoster1, lineup1, team1Players).map((p) => ({
+        id: p.id,
+        name: p.name,
+        number: p.number,
+      }));
+      const L2 = listOr(appRoster2, lineup2, team2Players).map((p) => ({
+        id: p.id,
+        name: p.name,
+        number: p.number,
+      }));
+
+      const MIN_ROWS = 14;
+
+      const makeRosterTable = (title, arr) => {
+        const head = new TableRow({
+          children: [
+            new TableCell({ children: [P('№')] }),
+            new TableCell({ children: [P('ФИО')] }),
+            new TableCell({ children: [P('Голы\n(мин)')] }),
+            new TableCell({ children: [P('Передачи\n(мин)')] }),
+          ],
+        });
+
+        const body = arr.map(
+          (p, i) =>
+            new TableRow({
+              children: [
+                new TableCell({ children: [P(String(i + 1))] }),
+                new TableCell({ children: [P(p.name || ' ')] }),
+                new TableCell({
+                  children: [P(minsStr(goalsBy.get(p.id)) || ' ')],
+                }),
+                new TableCell({
+                  children: [P(minsStr(assistsBy.get(p.id)) || ' ')],
+                }),
+              ],
+            })
+        );
+
+        const pad = Math.max(0, MIN_ROWS - arr.length);
+        const padded = Array.from(
+          { length: pad },
+          (_, k) =>
+            new TableRow({
+              children: [
+                new TableCell({ children: [P(String(arr.length + k + 1))] }),
+                new TableCell({ children: [P(' ')] }),
+                new TableCell({ children: [P(' ')] }),
+                new TableCell({ children: [P(' ')] }),
+              ],
+            })
+        );
+
+        // заголовок таблицы – название команды
+        return [
+          P(title, { alignment: AlignmentType.CENTER }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [head, ...body, ...padded],
+          }),
+        ];
+      };
+
+      // Шапка: «Протокол матча» слева и название лиги справа
+      const header = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [
+                  P('Протокол матча', { alignment: AlignmentType.LEFT }),
+                ],
+                borders: noBorders,
+              }),
+              new TableCell({
+                children: [P(league, { alignment: AlignmentType.RIGHT })],
+                borders: noBorders,
+              }),
+            ],
+          }),
+        ],
+        borders: noBorders,
+      });
+
+      // Блок "Место / Дата"
+      const placeDate = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ children: [P(`Место проведения:\n${place}`)] }),
+              new TableCell({
+                children: [
+                  P(`Дата проведения:\n${when}`, {
+                    alignment: AlignmentType.RIGHT,
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+        borders: noBorders,
+      });
+
+      // Две колонки со списками
+      const twoCols = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ children: [...makeRosterTable(t1, L1)] }),
+              new TableCell({ children: [...makeRosterTable(t2, L2)] }),
+            ],
+          }),
+        ],
+        borders: noBorders,
+      });
+
+      // Результат
+      const result = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [P('Результат', { alignment: AlignmentType.CENTER })],
+                borders: noBorders,
+              }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [P(`${t1}`, { alignment: AlignmentType.LEFT })],
+                borders: noBorders,
+              }),
+              new TableCell({
+                children: [
+                  P(String(Number(score1) || 0), {
+                    alignment: AlignmentType.CENTER,
+                  }),
+                ],
+              }),
+              new TableCell({
+                children: [P(':', { alignment: AlignmentType.CENTER })],
+              }),
+              new TableCell({
+                children: [
+                  P(String(Number(score2) || 0), {
+                    alignment: AlignmentType.CENTER,
+                  }),
+                ],
+              }),
+              new TableCell({
+                children: [P(`${t2}`, { alignment: AlignmentType.LEFT })],
+                borders: noBorders,
+              }),
+            ],
+          }),
+        ],
+        borders: noBorders,
+      });
+
+      const line = '______________________________';
+
+      // Оценки и подписи (две колонки)
+      const grades = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [P('Лучший игрок матча:  ' + line)],
+                columnSpan: 2,
+              }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({ children: [P('Оценка за судейство  ' + line)] }),
+              new TableCell({ children: [P('Оценка за судейство  ' + line)] }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({ children: [P('Подпись капитана  ' + line)] }),
+              new TableCell({ children: [P('Подпись капитана  ' + line)] }),
+            ],
+          }),
+        ],
+        borders: noBorders,
+      });
+
+      const chiefRef = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ children: [P('Главный судья:  ФИО')] }),
+              new TableCell({
+                children: [
+                  P('Подпись  ' + line, { alignment: AlignmentType.RIGHT }),
+                ],
+              }),
+            ],
+          }),
+        ],
+        borders: noBorders,
+      });
+
+      // Примечание: 3 строки
+      const note = [
+        P('Примечание:'),
+        P(
+          '________________________________________________________________________________'
+        ),
+        P(
+          '________________________________________________________________________________'
+        ),
+        P(
+          '________________________________________________________________________________'
+        ),
+      ];
+
+      const doc = new Document({
+        sections: [
+          {
+            properties: {
+              page: {
+                margin: { top: 720, right: 720, bottom: 720, left: 720 },
+              },
+            },
+            children: [
+              header,
+              P(' '),
+              placeDate,
+              P(' '),
+              twoCols,
+              P(' '),
+              result,
+              P(' '),
+              grades,
+              P(' '),
+              chiefRef,
+              P(' '),
+              ...note,
+            ],
+          },
+        ],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `match_${match.id}_protocol_official.docx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert('Не удалось сформировать протокол (DOCX).');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function saveEditEvent() {
@@ -1207,14 +1941,13 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
 
   return (
     <div className="modal live-modal">
-      <div className="modal__backdrop"  />
+      <div className="modal__backdrop" />
       <div className="modal__dialog live-modal__dialog">
         <div className="modal__header">
           <h3 className="modal__title">
             Проведение матча: {match.team1?.title || `#${match.team1Id}`} —{' '}
             {match.team2?.title || `#${match.team2Id}`}
           </h3>
-     
         </div>
 
         <div className="modal__body">
@@ -1255,7 +1988,7 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
               </div>
 
               <div className="scoreboard__controls">
-                <button className="btn btn--ghost" onClick={startPause}>
+                <button className="btn btn" onClick={startPause}>
                   {running ? 'Пауза' : 'Старт'}
                 </button>
                 <button className="btn" onClick={finishHalf}>
@@ -1264,14 +1997,14 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
 
                 <div className="scoreboard__nav">
                   <button
-                    className="btn btn--ghost"
+                    className="btn btn"
                     onClick={prevHalf}
                     disabled={currentHalf <= 1}
                   >
                     ← Пред. тайм
                   </button>
                   <button
-                    className="btn btn--ghost"
+                    className="btn btn"
                     onClick={nextHalf}
                     disabled={currentHalf >= halves}
                   >
@@ -1530,7 +2263,7 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
                                 Сохранить
                               </button>
                               <button
-                                className="btn btn--xs btn--ghost"
+                                className="btn btn--xs btn"
                                 onClick={cancelEditEvent}
                               >
                                 Отмена
@@ -1559,7 +2292,7 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
                 <h4 className="timeline__title">MVP матча</h4>
                 <div className="row-actions">
                   <button
-                    className="btn btn--sm btn--ghost"
+                    className="btn btn--sm btn"
                     onClick={() => setShowMvp(false)}
                   >
                     Закрыть
@@ -1617,11 +2350,10 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
         <div className="modal__footer">
           {status !== 'FINISHED' ? (
             <>
-              <button
-                className="btn "
-                onClick={finishMatch}
-                disabled={loading}
-              >
+              <button className="btn btn" onClick={downloadApplicationDocx}>
+                Заявка (DOCX)
+              </button>
+              <button className="btn " onClick={finishMatch} disabled={loading}>
                 Завершить матч
               </button>
               <div className="spacer" />
@@ -1631,13 +2363,19 @@ function LiveMatchModal({ match, onClose, onScoreChanged }) {
             </>
           ) : (
             <>
+              <button
+                className="btn btn--ghost"
+                onClick={downloadOfficialProtocolDocx}
+              >
+                Протокол (DOCX)
+              </button>
+              <button className="btn btn" onClick={downloadApplicationDocx}>
+                Заявка (DOCX)
+              </button>
               <button className="btn" onClick={downloadReportDocx}>
                 Скачать DOCX
               </button>
-              <button
-                className="btn btn--ghost"
-                onClick={() => setShowMvp((v) => !v)}
-              >
+              <button className="btn btn" onClick={() => setShowMvp((v) => !v)}>
                 MVP матча
               </button>
               <div className="spacer" />
@@ -1772,7 +2510,7 @@ function EditMatchModal({
       <div className="modal__dialog">
         <div className="modal__header">
           <h3 className="modal__title">Редактирование матча #{match.id}</h3>
-          <button className="btn btn--ghost" onClick={onClose}>
+          <button className="btn btn" onClick={onClose}>
             ×
           </button>
         </div>
@@ -1927,7 +2665,7 @@ function EditMatchModal({
                   <div className="field field--inline-actions">
                     <button
                       type="button"
-                      className="btn btn--ghost"
+                      className="btn btn"
                       onClick={() => rmRefRow(i)}
                       title="Удалить"
                     >
@@ -1958,7 +2696,7 @@ function EditMatchModal({
             Сохранить
           </button>
           <div className="spacer" />
-          <button className="btn btn--ghost" onClick={onClose}>
+          <button className="btn btn" onClick={onClose}>
             Отмена
           </button>
         </div>
@@ -1973,8 +2711,467 @@ export default function LeagueMatchesTab({ leagueId }) {
   const [teams, setTeams] = useState([]);
   const [stadiums, setStadiums] = useState([]);
   const [referees, setReferees] = useState([]); // 👈 справочник судей
+  const [league, setLeague] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+
+  async function loadLeagueInfo() {
+    const res = await fetch(`${API_LEAGUES}/${leagueId}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+    setLeague(data || null);
+  }
+
+  // === Календарь JPG ===
+  const [showCalModal, setShowCalModal] = useState(false);
+  const [calDate, setCalDate] = useState(''); // YYYY-MM-DD
+  const posterRef = useRef(null);
+  const [posterData, setPosterData] = useState(null);
+  const [posterMode, setPosterMode] = useState('cal'); // {titleDay,titleVenue,matches,season}
+  const [topRound, setTopRound] = useState('');
+
+  async function downloadTopScorersJPG(roundNo) {
+    // 1) Матчи для отчёта
+    const finished = matches.filter((m) => m.status === 'FINISHED');
+    const list = finished.filter((m) => {
+      // если в матчах есть поле round/tour — используем его; иначе берём все
+      if (!roundNo) return true;
+      const r = m.round ?? m.tour ?? m.matchday ?? null;
+      return Number(r) === Number(roundNo);
+    });
+    if (!list.length) {
+      alert('Нет завершённых матчей для выбранного набора.');
+      return;
+    }
+
+    // 2) Тянем события (с игроками) и участников
+    const getJSON = async (url) => {
+      const r = await fetch(url);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d?.error || `HTTP ${r.status}`);
+      return d;
+    };
+
+    // по одному запросу на матч — самый совместимый способ
+    const eventsByMatch = await Promise.all(
+      list.map((m) =>
+        getJSON(
+          `${API_EVENTS}?` +
+            new URLSearchParams({
+              range: JSON.stringify([0, 999]),
+              sort: JSON.stringify(['id', 'ASC']),
+              filter: JSON.stringify({ matchId: m.id }),
+            }) +
+            `&include=player,team`
+        ).then((arr) => ({ id: m.id, events: Array.isArray(arr) ? arr : [] }))
+      )
+    );
+
+    const participantsByMatch = await Promise.all(
+      list.map((m) =>
+        getJSON(`${API_MATCHES}/${m.id}/participants?include=player`).then(
+          (arr) => ({ id: m.id, parts: Array.isArray(arr) ? arr : [] })
+        )
+      )
+    );
+
+    // 3) Агрегируем
+    const goals = new Map(); // playerId -> count
+    const games = new Map(); // playerId -> Set<matchId>
+    const pinfo = new Map(); // playerId -> { name, teamTitle, photo }
+
+    const mergePinfo = (pid, patch) => {
+      const prev = pinfo.get(pid) || {};
+      pinfo.set(pid, { ...prev, ...patch });
+    };
+
+    for (const { id: matchId, events } of eventsByMatch) {
+      for (const e of events) {
+        if (e.type === 'GOAL' || e.type === 'PENALTY_SCORED') {
+          const pid = Number(e.playerId);
+          if (!pid) continue;
+          goals.set(pid, (goals.get(pid) || 0) + 1);
+          // инфо игрока
+          const name =
+            e.player?.name ??
+            (e.player &&
+              (e.player.surname
+                ? `${e.player.name} ${e.player.surname}`
+                : e.player.name)) ??
+            '';
+          const teamId = e.teamId ?? e.team?.id ?? null;
+          const t = teamId ? teamById(teams, teamId) : null;
+          const teamTitle = e.team?.title ?? t?.title ?? '';
+          const teamLogoUrl = t ? teamLogo(t) : '';
+          const photo = playerPhoto(e.player);
+          mergePinfo(pid, {
+            name,
+            teamId,
+            teamTitle,
+            teamLogo: teamLogoUrl,
+            photo,
+          });
+        }
+      }
+    }
+
+    for (const { id: matchId, parts } of participantsByMatch) {
+      const seen = new Set();
+      for (const pm of parts) {
+        const pid = pm.playerId ?? pm.player?.id;
+        if (!pid) continue;
+        if (!games.has(pid)) games.set(pid, new Set());
+        games.get(pid).add(matchId);
+        const name = pm.player?.name ?? '';
+        const teamId = pm.player?.teamId ?? pm.teamId ?? null;
+        const t = teamId ? teamById(teams, teamId) : null;
+        const teamTitle = t?.title ?? '';
+        const teamLogoUrl = t ? teamLogo(t) : '';
+        const photo = playerPhoto(pm.player);
+        mergePinfo(pid, {
+          name,
+          teamId,
+          teamTitle,
+          teamLogo: teamLogoUrl,
+          photo,
+        });
+        seen.add(pid);
+      }
+    }
+
+    // Фолбэк: если участников нет — игры = количество матчей, где игрок забивал
+    if (![...games.values()].length) {
+      for (const [pid] of goals) {
+        const s = new Set();
+        for (const { id: matchId, events } of eventsByMatch) {
+          if (events.some((e) => Number(e.playerId) === Number(pid)))
+            s.add(matchId);
+        }
+        games.set(pid, s);
+      }
+    }
+
+    // 4) TOP-5
+    const rows = [...goals.entries()]
+      .map(([pid, g]) => {
+        const info = pinfo.get(pid) || {};
+        return {
+          playerId: pid,
+          name: info.name || `#${pid}`,
+          teamTitle: info.teamTitle || '',
+          teamLogo:
+            info.teamLogo ||
+            (info.teamId ? teamLogo(teamById(teams, info.teamId)) : ''),
+          photo: info.photo || '',
+          goals: g,
+          games: games.get(pid)?.size || 0,
+        };
+      })
+      .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name, 'ru'))
+      .slice(0, 5);
+
+    if (!rows.length) {
+      alert('Не найдено голов для отчёта.');
+      return;
+    }
+
+    // 5) Рендер и сохранение
+    const seasonYear = new Date(list[0].date || Date.now()).getFullYear();
+    const roundLabel = roundNo ? `${roundNo} ТУР` : '';
+
+    const season = league?.season ?? seasonYear;
+
+    setPosterMode('top');
+    setPosterData({
+      season, // ← берём из БД, иначе год из даты
+      roundLabel,
+      rows,
+    });
+
+    await new Promise((r) => setTimeout(r, 0)); // дождаться рендера
+
+    // ждём загрузки изображений внутри постера
+    await new Promise((resolve) => {
+      const imgs = posterRef.current?.querySelectorAll('img') || [];
+      if (!imgs.length) return resolve();
+      let left = imgs.length;
+      imgs.forEach((img) => {
+        if (img.complete) {
+          if (--left === 0) resolve();
+        } else {
+          const done = () => {
+            img.onload = img.onerror = null;
+            if (--left === 0) resolve();
+          };
+          img.onload = done;
+          img.onerror = done;
+        }
+      });
+    });
+
+    const { toJpeg } = await import('html-to-image');
+    const opts = {
+      pixelRatio: 2,
+      quality: 0.95,
+      skipFonts: true,
+      cacheBust: true,
+    };
+    const dataUrl = await toJpeg(posterRef.current, opts);
+
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `top_scorers_${
+      roundNo ? `round${roundNo}_` : ''
+    }${season}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setPosterData(null);
+  }
+
+  // helpers: teamById, teamLogo, fmtDDMMMM — как у тебя в календаре
+  function buildResultsPosterData(matches, teams, stadiums, dateStr) {
+    if (!dateStr) return null;
+    const dayStart = new Date(`${dateStr}T00:00:00`);
+    const dayEnd = new Date(`${dateStr}T23:59:59`);
+
+    const dayMatches = (matches || []).filter((m) => {
+      const d = new Date(m.date);
+      return d >= dayStart && d <= dayEnd;
+    });
+    if (!dayMatches.length) return null;
+
+    const venues = [
+      ...new Set(
+        dayMatches
+          .map((m) => stadiums.find((s) => s.id === m.stadiumId)?.name)
+          .filter(Boolean)
+      ),
+    ];
+
+    const rows = dayMatches.map((m) => {
+      const h = teamById(teams, m.team1Id);
+      const a = teamById(teams, m.team2Id);
+      const s1 = Number(m.team1Score ?? 0);
+      const s2 = Number(m.team2Score ?? 0);
+      return {
+        home: { name: h?.title || `#${m.team1Id}`, logo: teamLogo(h) },
+        away: { name: a?.title || `#${m.team2Id}`, logo: teamLogo(a) },
+        score: `${s1}-${s2}`,
+      };
+    });
+
+    return {
+      season: new Date(dayMatches[0].date).getFullYear(),
+      titleDay: fmtDDMMMM(dayMatches[0].date),
+      titleVenue: venues.join(', ') || '—',
+      matches: rows,
+    };
+  }
+
+  function calcStandings(allMatches, allTeams, roundLimit = null) {
+    const init = (t) => ({
+      teamId: t.id,
+      title: t.title || `#${t.id}`,
+      logo: teamLogo(t),
+      played: 0,
+      w: 0,
+      d: 0,
+      l: 0,
+      gf: 0,
+      ga: 0,
+      pts: 0,
+      diff: 0,
+    });
+
+    const byId = new Map(allTeams.map((t) => [t.id, init(t)]));
+
+    const finished = allMatches.filter((m) => {
+      if (m.status !== 'FINISHED') return false;
+      if (roundLimit == null) return true;
+      const r = m.round ?? m.tour ?? m.matchday ?? null;
+      return r != null ? Number(r) <= Number(roundLimit) : true;
+    });
+
+    for (const m of finished) {
+      const t1 = byId.get(m.team1Id) || init(teamById(allTeams, m.team1Id));
+      const t2 = byId.get(m.team2Id) || init(teamById(allTeams, m.team2Id));
+      byId.set(m.team1Id, t1);
+      byId.set(m.team2Id, t2);
+
+      const s1 = Number(m.team1Score ?? 0);
+      const s2 = Number(m.team2Score ?? 0);
+
+      t1.played++;
+      t2.played++;
+      t1.gf += s1;
+      t1.ga += s2;
+      t2.gf += s2;
+      t2.ga += s1;
+
+      if (s1 > s2) {
+        t1.w++;
+        t2.l++;
+        t1.pts += 3;
+      } else if (s2 > s1) {
+        t2.w++;
+        t1.l++;
+        t2.pts += 3;
+      } else {
+        t1.d++;
+        t2.d++;
+        t1.pts++;
+        t2.pts++;
+      }
+    }
+
+    const rows = [...byId.values()].map((r) => ({ ...r, diff: r.gf - r.ga }));
+    rows.sort(
+      (a, b) =>
+        b.pts - a.pts ||
+        b.diff - a.diff ||
+        b.gf - a.gf ||
+        a.title.localeCompare(b.title, 'ru')
+    );
+
+    return rows;
+  }
+
+  async function downloadStandingsJPG(roundNo = null) {
+    const rows = calcStandings(matches, teams, roundNo);
+    if (!rows.length) {
+      alert('Нет данных для таблицы.');
+      return;
+    }
+
+    setPosterMode('tbl');
+    setPosterData({
+      season: league?.season ?? new Date().getFullYear(), // красивый сезон из БД
+      rows,
+    });
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    // дождаться загрузки логотипов
+    await new Promise((resolve) => {
+      const imgs = posterRef.current?.querySelectorAll('img') || [];
+      if (!imgs.length) return resolve();
+      let left = imgs.length;
+      imgs.forEach((img) => {
+        const done = () => (--left === 0 ? resolve() : null);
+        img.complete ? done() : (img.onload = img.onerror = done);
+      });
+    });
+
+    const { toJpeg } = await import('html-to-image');
+    const dataUrl = await toJpeg(posterRef.current, {
+      pixelRatio: 2,
+      quality: 0.95,
+      skipFonts: true,
+      cacheBust: true,
+    });
+
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `standings${roundNo ? `_round${roundNo}` : ''}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setPosterData(null);
+  }
+
+  // внутри твоего компонента, где есть posterRef и setPosterData
+  async function downloadResultsJPG(dateStr) {
+    setPosterMode('res');
+    const data = buildResultsPosterData(matches, teams, stadiums, dateStr);
+    if (!data) {
+      alert('На выбранную дату матчей нет');
+      return;
+    }
+    setPosterData(data); // показать постер
+    await new Promise((r) => setTimeout(r, 0));
+
+    const { toJpeg } = await import('html-to-image');
+    const opts = {
+      pixelRatio: 2,
+      quality: 0.95,
+      skipFonts: true,
+      cacheBust: true,
+    };
+    const dataUrl = await toJpeg(posterRef.current, opts);
+
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `results_${dateStr}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setPosterData(null); // убрать постер из DOM
+  }
+
+  // Собираем данные для постера из матчей/команд/стадионов
+  function buildPosterData(dateStr) {
+    if (!dateStr) return null;
+    const dayStart = new Date(dateStr + 'T00:00:00');
+    const dayEnd = new Date(dateStr + 'T23:59:59');
+
+    const dayMatches = (matches || []).filter((m) => {
+      const d = new Date(m.date);
+      return d >= dayStart && d <= dayEnd;
+    });
+    if (!dayMatches.length) return null;
+
+    const venues = [
+      ...new Set(
+        dayMatches
+          .map((m) => stadiums.find((s) => s.id === m.stadiumId)?.name)
+          .filter(Boolean)
+      ),
+    ];
+
+    const rows = dayMatches.map((m) => {
+      const h = teams.find((t) => t.id === m.team1Id) || {};
+      const a = teams.find((t) => t.id === m.team2Id) || {};
+      return {
+        time: fmtHM(m.date),
+        home: { name: h.title || `#${m.team1Id}`, logo: teamLogo(h) },
+        away: { name: a.title || `#${m.team2Id}`, logo: teamLogo(a) },
+      };
+    });
+
+    return {
+      titleDay: fmtDDMMMM(dayMatches[0].date),
+      titleVenue: venues.join(', ') || '—',
+      matches: rows,
+      season: league?.season ?? new Date(dayMatches[0].date).getFullYear(),
+    };
+  }
+
+  async function downloadCalendarJPG() {
+    const data = buildPosterData(calDate);
+    if (!data) {
+      alert('На выбранную дату матчей нет');
+      return;
+    }
+    setPosterData(data);
+    await new Promise((r) => setTimeout(r, 0)); // дождаться рендера скрытого постера
+
+    const { toJpeg } = await import('html-to-image');
+    const opts = {
+      pixelRatio: 2,
+      quality: 0.95,
+      skipFonts: true,
+      cacheBust: true,
+    };
+    const dataUrl = await toJpeg(posterRef.current, opts);
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `calendar_${calDate}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setPosterData(null);
+  }
 
   const [showCreate, setShowCreate] = useState(false);
 
@@ -2070,6 +3267,7 @@ export default function LeagueMatchesTab({ leagueId }) {
           loadLeagueTeams(),
           loadStadiums(),
           loadReferees(), // 👈 тянем список судей
+          loadLeagueInfo(),
         ]);
       } catch (e) {
         console.error(e);
@@ -2147,7 +3345,10 @@ export default function LeagueMatchesTab({ leagueId }) {
 
   return (
     <div className="grid onecol">
-      <div className="toolbar">
+      <div
+        className="toolbar"
+        style={{ display: 'flex', gap: '20px', marginTop: '20px' }}
+      >
         <button
           className="btn btn--primary"
           onClick={() =>
@@ -2161,8 +3362,148 @@ export default function LeagueMatchesTab({ leagueId }) {
         >
           {showCreate ? 'Закрыть форму' : 'Создать матч'}
         </button>
+        <button
+          className="btn btn--ghost"
+          onClick={() => {
+            const d = matches[0]?.date ? new Date(matches[0].date) : new Date();
+            setCalDate(d.toISOString().slice(0, 10));
+            setPosterMode('cal'); // ✅
+            setShowCalModal(true);
+          }}
+        >
+          Календарь (JPG)
+        </button>
+        <button
+          className="btn btn--ghost"
+          onClick={() => {
+            const d = matches.find((m) => m.status === 'FINISHED')?.date
+              ? new Date(matches.find((m) => m.status === 'FINISHED').date)
+              : matches[0]?.date
+              ? new Date(matches[0].date)
+              : new Date();
+            setCalDate(d.toISOString().slice(0, 10));
+            setPosterMode('res');
+            setShowCalModal(true);
+          }}
+        >
+          Результаты (JPG)
+        </button>
+        <button
+          className="btn btn--ghost"
+          onClick={() => {
+            setPosterMode('top');
+            setTopRound('');
+            setShowCalModal(true);
+          }}
+        >
+          Топ-5 бомбардиров (JPG)
+        </button>
+        <button
+          className="btn btn--ghost"
+          onClick={() => {
+            setPosterMode('tbl');
+            setTopRound(''); // можно использовать тот же state, что и для ТОП-5
+            setShowCalModal(true);
+          }}
+        >
+          Турнирная таблица (JPG)
+        </button>
       </div>
+      {showCalModal && (
+        <div
+          className="modal"
+          onClick={() => setShowCalModal(false)}
+          style={{
+            display: 'flex',
+            width: '500px',
+            margin: '40px',
+            padding: '20px',
+            gap: '20px',
+            border: '1px solid #000',
+          }}
+        >
+          <div className="modal__backdrop" />
+          <div className="modal__dialog" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="modal__header"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '20px',
+              }}
+            >
+              {/* <h3 className="modal__title">Скачать календарь за день</h3> */}
+              <h3 className="modal__title">
+                {posterMode === 'cal'
+                  ? 'Скачать календарь за день'
+                  : posterMode === 'res'
+                  ? 'Скачать результаты за день'
+                  : posterMode === 'top'
+                  ? 'Скачать ТОП-5 бомбардиров'
+                  : 'Скачать турнирную таблицу'}
+              </h3>
+              <button
+                // className="btn btn--ghost"
+                onClick={() => setShowCalModal(false)}
+                style={{ width: '20px', fontSize: '16px' }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal__body">
+              {['cal', 'res'].includes(posterMode) ? (
+                <label className="field">
+                  <span className="field__label">Дата</span>
+                  <input
+                    className="input"
+                    type="date"
+                    value={calDate}
+                    onChange={(e) => setCalDate(e.target.value)}
+                    style={{ width: '400px' }}
+                  />
+                </label>
+              ) : (
+                <label className="field">
+                  <span className="field__label">Номер тура (опционально)</span>
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    value={topRound}
+                    onChange={(e) => setTopRound(e.target.value)}
+                    placeholder="например: 7"
+                  />
+                </label>
+              )}
+            </div>
 
+            <div
+              className="modal__footer"
+              style={{ display: 'flex', gap: '20px', marginTop: '20px' }}
+            >
+              <button
+                className="btn "
+                onClick={
+                  posterMode === 'cal'
+                    ? downloadCalendarJPG
+                    : posterMode === 'res'
+                    ? () => downloadResultsJPG(calDate)
+                    : posterMode === 'top'
+                    ? () => downloadTopScorersJPG(topRound || null)
+                    : () => downloadStandingsJPG(topRound || null) // режим 'tbl'
+                }
+              >
+                Скачать JPG
+              </button>
+              <div className="spacer" />
+              <button className="btn" onClick={() => setShowCalModal(false)}>
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showCreate && (
         <section className="card">
           <h3>Создать матч</h3>
@@ -2304,7 +3645,7 @@ export default function LeagueMatchesTab({ leagueId }) {
                   <div className="field field--inline-actions">
                     <button
                       type="button"
-                      className="btn btn--ghost"
+                      className="btn btn"
                       onClick={() => rmCreateRef(i)}
                       title="Удалить"
                     >
@@ -2334,7 +3675,7 @@ export default function LeagueMatchesTab({ leagueId }) {
               </button>
               <button
                 type="button"
-                className="btn btn--ghost"
+                className="btn btn"
                 onClick={() => {
                   resetForm();
                   setShowCreate(false);
@@ -2346,7 +3687,6 @@ export default function LeagueMatchesTab({ leagueId }) {
           </form>
         </section>
       )}
-
       <section className="card">
         <h3>Матчи лиги</h3>
         <div className="table">
@@ -2382,7 +3722,7 @@ export default function LeagueMatchesTab({ leagueId }) {
                       })
                     }
                   >
-                    Провести матч
+                    Провести
                   </button>
                   <button
                     className="btn btn--sm"
@@ -2403,7 +3743,26 @@ export default function LeagueMatchesTab({ leagueId }) {
           </div>
         </div>
       </section>
+      {/* Скачать кадендарь матчей */}
+      <PosterCal
+        posterRef={posterRef}
+        posterData={posterMode === 'cal' ? posterData : null}
+      />
 
+      <PosterResults
+        posterRef={posterRef}
+        posterData={posterMode === 'res' ? posterData : null}
+      />
+      <PosterTop5
+        posterRef={posterRef}
+        posterData={posterMode === 'top' ? posterData : null}
+      />
+
+      <PosterTable
+        posterRef={posterRef}
+        posterData={posterMode === 'tbl' ? posterData : null}
+      />
+      {/* Скачать кадендарь матчей */}
       {liveMatch && (
         <LiveMatchModal
           match={liveMatch}
@@ -2411,7 +3770,6 @@ export default function LeagueMatchesTab({ leagueId }) {
           onScoreChanged={(id, score) => patchMatchScore(id, score)}
         />
       )}
-
       {editMatch && (
         <EditMatchModal
           match={editMatch}

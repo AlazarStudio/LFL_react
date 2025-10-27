@@ -1,8 +1,8 @@
 import React, { useContext, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../../auth/AuthProvider'; // проверь относительный путь!
-import serverConfig from '../../serverConfig'; // проверь путь!
+import { AuthContext } from '../../auth/AuthProvider';
+import serverConfig from '../../serverConfig';
 
 export default function LoginPage() {
   const [loginVal, setLoginVal] = useState('');
@@ -17,13 +17,9 @@ export default function LoginPage() {
     try {
       const { data } = await axios.post(
         `${serverConfig}/auth/login`,
-        {
-          login: loginVal,
-          password,
-        },
+        { login: loginVal, password },
         { headers: { 'Content-Type': 'application/json' } }
       );
-      // сервер должен вернуть { token }
       login(data.token);
       navigate('/admin', { replace: true });
     } catch (e) {
@@ -44,10 +40,11 @@ export default function LoginPage() {
       >
         <h3>Вход</h3>
         <input
-          placeholder="Логин"
+          placeholder="Логин или email"
           value={loginVal}
           onChange={(e) => setLoginVal(e.target.value)}
           style={{ width: '100%', margin: '8px 0', padding: 10 }}
+          autoComplete="username"
         />
         <input
           placeholder="Пароль"
@@ -55,6 +52,7 @@ export default function LoginPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           style={{ width: '100%', margin: '8px 0', padding: 10 }}
+          autoComplete="current-password"
         />
         {err && <div style={{ color: '#d33', marginBottom: 8 }}>{err}</div>}
         <button type="submit" style={{ width: '100%', padding: 10 }}>

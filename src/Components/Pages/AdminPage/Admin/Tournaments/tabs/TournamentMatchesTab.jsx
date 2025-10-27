@@ -3,12 +3,45 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import serverConfig from '../../../../../../serverConfig';
 import './TournamentMatchesTab.css';
 
+import uploadsConfig from '../../../../../../uploadsConfig';
+import PosterCal from '../../../Leagues/tabs/posters/PosterCal';
+import PosterResults from '../../../Leagues/tabs/posters/PosterResults';
+import PosterTop5 from '../../../Leagues/tabs/posters/PosterTop5';
+import PosterTable from '../../../Leagues/tabs/posters/PosterTable';
+
 /* ===================== API ===================== */
 const API_T = `${serverConfig}/tournaments`;
 const API_REFS = `${serverConfig}/referees`;
 const API_STADIUMS = `${serverConfig}/stadiums`;
 
 /* ===================== Утилиты ===================== */
+
+const ASSETS_BASE = String(uploadsConfig || '').replace(/\/api\/?$/, '');
+const buildSrc = (p) =>
+  !p ? '' : /^https?:\/\//i.test(p) ? p : `${ASSETS_BASE}${p}`;
+
+const teamLogo = (team) => {
+  const p =
+    team?.logo?.[0]?.src ??
+    team?.logo?.[0] ??
+    team?.images?.[0]?.src ??
+    team?.images?.[0] ??
+    '';
+  return buildSrc(p);
+};
+const playerPhoto = (p) => {
+  const src =
+    p?.images?.[0]?.src ??
+    p?.images?.[0] ??
+    p?.photo?.[0]?.src ??
+    p?.photo ??
+    p?.avatar?.[0]?.src ??
+    p?.avatar ??
+    p?.image ??
+    '';
+  return buildSrc(src);
+};
+
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const fmt2 = (n) => String(n).padStart(2, '0');
 const dtLoc = (s) => {
@@ -1248,10 +1281,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
                               >
                                 Сохранить
                               </button>
-                              <button
-                                className="btn"
-                                onClick={cancelEditEvent}
-                              >
+                              <button className="btn" onClick={cancelEditEvent}>
                                 Отмена
                               </button>
                               <button
@@ -1341,10 +1371,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
               <button className="btn" onClick={downloadReportDocx}>
                 Скачать DOCX
               </button>
-              <button
-                className="bt"
-                onClick={() => setShowMvp((v) => !v)}
-              >
+              <button className="bt" onClick={() => setShowMvp((v) => !v)}>
                 MVP матча
               </button>
               <div className="spacer" />
@@ -1639,11 +1666,7 @@ function EditMatchModal({
         </div>
 
         <div className="modal__footer">
-          <button
-            className="btn"
-            onClick={save}
-            disabled={loading}
-          >
+          <button className="btn" onClick={save} disabled={loading}>
             Сохранить
           </button>
           <div className="spacer" />
@@ -1668,6 +1691,18 @@ export default function TournamentMatchesTab({ tournamentId }) {
   const [err, setErr] = useState('');
   const [editMatch, setEditMatch] = useState(null);
 
+  // JPG-постеры
+  const [showCalModal, setShowCalModal] = useState(false);
+  const [posterMode, setPosterMode] = useState('cal'); // 'cal' | 'res' | 'top' | 'tbl'
+  const [calDate, setCalDate] = useState(''); // YYYY-MM-DD
+  const [topRound, setTopRound] = useState(''); // опц. фильтр (не обязателен)
+  const posterRef = useRef(null);
+  const [posterData, setPosterData] = useState(null);
+
+  const ttTeam = (ttId) => ttIndex.get(ttId)?.team || null;
+  const ttTitle = (ttId) => ttTeam(ttId)?.title || `TT#${ttId}`;
+  const ttLogo = (ttId) => teamLogo(ttTeam(ttId));
+
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({
     date: '',
@@ -1686,6 +1721,364 @@ export default function TournamentMatchesTab({ tournamentId }) {
       roundId: '',
       tieId: '',
     });
+
+  function buildCalendarPosterData(dateStr) {
+    if (!dateStr) return null;
+    const dayStart = new Date(`${dateStr}T00:00:00`);
+    const dayEnd = new Date(`${dateStr}T23:59:59`);
+
+    const dayMatches = (matches || []).filter((m) => {
+      const d = new Date(m.date);
+      return d >= dayStart && d <= dayEnd;
+    });
+    if (!dayMatches.length) return null;
+
+    const venues = [
+      ...new Set(
+        dayMatches
+          .map((m) => stadiums.find((s) => s.id === m.stadiumId)?.name)
+          .filter(Boolean)
+      ),
+    ];
+
+    const rows = dayMatches.map((m) => ({
+      time: new Date(m.date).toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      home: { name: ttTitle(m.team1TTId), logo: ttLogo(m.team1TTId) },
+      away: { name: ttTitle(m.team2TTId), logo: ttLogo(m.team2TTId) },
+    }));
+
+    return {
+      titleDay: new Date(dayMatches[0].date).toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+      }),
+      titleVenue: venues.join(', ') || '—',
+      matches: rows,
+      season: new Date(dayMatches[0].date).getFullYear(),
+    };
+  }
+
+  async function downloadCalendarJPG() {
+    const data = buildCalendarPosterData(calDate);
+    if (!data) return alert('На выбранную дату матчей нет');
+    setPosterMode('cal');
+    setPosterData(data);
+    await new Promise((r) => setTimeout(r, 0));
+    const { toJpeg } = await import('html-to-image');
+    const dataUrl = await toJpeg(posterRef.current, {
+      pixelRatio: 2,
+      quality: 0.95,
+      skipFonts: true,
+      cacheBust: true,
+    });
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `calendar_${calDate}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setPosterData(null);
+  }
+
+  function buildResultsPosterData(dateStr) {
+    if (!dateStr) return null;
+    const dayStart = new Date(`${dateStr}T00:00:00`);
+    const dayEnd = new Date(`${dateStr}T23:59:59`);
+
+    const dayMatches = (matches || []).filter((m) => {
+      const d = new Date(m.date);
+      return d >= dayStart && d <= dayEnd;
+    });
+    if (!dayMatches.length) return null;
+
+    const venues = [
+      ...new Set(
+        dayMatches
+          .map((m) => stadiums.find((s) => s.id === m.stadiumId)?.name)
+          .filter(Boolean)
+      ),
+    ];
+
+    const rows = dayMatches.map((m) => ({
+      home: { name: ttTitle(m.team1TTId), logo: ttLogo(m.team1TTId) },
+      away: { name: ttTitle(m.team2TTId), logo: ttLogo(m.team2TTId) },
+      score: `${Number(m.team1Score ?? 0)}-${Number(m.team2Score ?? 0)}`,
+    }));
+
+    return {
+      season: new Date(dayMatches[0].date).getFullYear(),
+      titleDay: new Date(dayMatches[0].date).toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+      }),
+      titleVenue: venues.join(', ') || '—',
+      matches: rows,
+    };
+  }
+
+  async function downloadResultsJPG(dateStr) {
+    const data = buildResultsPosterData(dateStr);
+    if (!data) return alert('На выбранную дату матчей нет');
+    setPosterMode('res');
+    setPosterData(data);
+    await new Promise((r) => setTimeout(r, 0));
+    const { toJpeg } = await import('html-to-image');
+    const dataUrl = await toJpeg(posterRef.current, {
+      pixelRatio: 2,
+      quality: 0.95,
+      skipFonts: true,
+      cacheBust: true,
+    });
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `results_${dateStr}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setPosterData(null);
+  }
+
+  async function downloadTopScorersJPG() {
+    const finished = matches.filter((m) => m.status === 'FINISHED');
+    if (!finished.length) return alert('Нет завершённых матчей.');
+
+    // Собираем события и участников поматчево
+    const getJSON = async (url) => {
+      const r = await fetch(url);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d?.error || `HTTP ${r.status}`);
+      return d;
+    };
+
+    const eventsByMatch = await Promise.all(
+      finished.map((m) =>
+        getJSON(`${serverConfig}/tournament-matches/${m.id}/events`).then(
+          (arr) => ({
+            id: m.id,
+            events: Array.isArray(arr) ? arr : [],
+          })
+        )
+      )
+    );
+
+    const partsByMatch = await Promise.all(
+      finished.map((m) =>
+        getJSON(`${serverConfig}/tournament-matches/${m.id}/participants`).then(
+          (arr) => ({
+            id: m.id,
+            parts: Array.isArray(arr) ? arr : [],
+          })
+        )
+      )
+    );
+
+    // Агрегация
+    const goals = new Map(); // playerId -> count
+    const games = new Map(); // playerId -> Set<matchId>
+    const pinfo = new Map(); // playerId -> { name, teamTitle, teamLogo, photo }
+
+    const mergePinfo = (pid, patch) =>
+      pinfo.set(pid, { ...(pinfo.get(pid) || {}), ...patch });
+
+    // из событий
+    for (const { id: mid, events } of eventsByMatch) {
+      for (const e of events) {
+        if (e.type !== 'GOAL' && e.type !== 'PENALTY_SCORED') continue;
+        const pid = e?.rosterItem?.player?.id ?? null;
+        if (!pid) continue;
+
+        goals.set(pid, (goals.get(pid) || 0) + 1);
+
+        const pl = e.rosterItem.player;
+        mergePinfo(pid, {
+          name: pl?.name || `#${pid}`,
+          teamTitle: ttTitle(e.tournamentTeamId),
+          teamLogo: ttLogo(e.tournamentTeamId),
+          photo: playerPhoto(pl),
+        });
+      }
+    }
+
+    // из участников — считаем игры
+    for (const { id: mid, parts } of partsByMatch) {
+      for (const pm of parts) {
+        const pl = pm?.tournamentTeamPlayer?.player;
+        const pid = pl?.id;
+        if (!pid) continue;
+        if (!games.has(pid)) games.set(pid, new Set());
+        games.get(pid).add(mid);
+
+        mergePinfo(pid, {
+          name: pl?.name || `#${pid}`,
+          // teamTitleLogo можно добить по tournamentTeamId, если он есть в pm
+        });
+      }
+    }
+
+    // fallback: если нет участников — игры = кол-во матчей, где забивал
+    if (![...games.values()].length) {
+      for (const [pid] of goals) {
+        const s = new Set();
+        for (const { id: mid, events } of eventsByMatch) {
+          if (events.some((e) => e?.rosterItem?.player?.id === pid)) s.add(mid);
+        }
+        games.set(pid, s);
+      }
+    }
+
+    const rows = [...goals.entries()]
+      .map(([pid, g]) => {
+        const info = pinfo.get(pid) || {};
+        return {
+          playerId: pid,
+          name: info.name || `#${pid}`,
+          teamTitle: info.teamTitle || '',
+          teamLogo: info.teamLogo || '',
+          photo: info.photo || '',
+          goals: g,
+          games: games.get(pid)?.size || 0,
+        };
+      })
+      .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name, 'ru'))
+      .slice(0, 5);
+
+    if (!rows.length) return alert('Голы не найдены.');
+
+    setPosterMode('top');
+    setPosterData({
+      season: new Date(finished[0].date || Date.now()).getFullYear(),
+      roundLabel: '', // при желании можно подставлять название стадии
+      rows,
+    });
+
+    await new Promise((r) => setTimeout(r, 0));
+    // дождёмся картинок
+    await new Promise((resolve) => {
+      const imgs = posterRef.current?.querySelectorAll('img') || [];
+      if (!imgs.length) return resolve();
+      let left = imgs.length;
+      imgs.forEach((img) => {
+        const done = () => (--left === 0 ? resolve() : null);
+        img.complete ? done() : (img.onload = img.onerror = done);
+      });
+    });
+
+    const { toJpeg } = await import('html-to-image');
+    const dataUrl = await toJpeg(posterRef.current, {
+      pixelRatio: 2,
+      quality: 0.95,
+      skipFonts: true,
+      cacheBust: true,
+    });
+    const a = document.createElement('a');
+    const season = new Date(finished[0].date || Date.now()).getFullYear();
+    a.href = dataUrl;
+    a.download = `top_scorers_${season}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setPosterData(null);
+  }
+
+  function calcStandingsT(matchesAll) {
+    const init = (ttId) => ({
+      ttId,
+      title: ttTitle(ttId),
+      logo: ttLogo(ttId),
+      played: 0,
+      w: 0,
+      d: 0,
+      l: 0,
+      gf: 0,
+      ga: 0,
+      pts: 0,
+      diff: 0,
+    });
+
+    const byId = new Map([...ttIndex.keys()].map((id) => [id, init(id)]));
+
+    const finished = (matchesAll || []).filter((m) => m.status === 'FINISHED');
+
+    for (const m of finished) {
+      const t1 = byId.get(m.team1TTId) || init(m.team1TTId);
+      const t2 = byId.get(m.team2TTId) || init(m.team2TTId);
+      byId.set(m.team1TTId, t1);
+      byId.set(m.team2TTId, t2);
+
+      const s1 = Number(m.team1Score ?? 0);
+      const s2 = Number(m.team2Score ?? 0);
+
+      t1.played++;
+      t2.played++;
+      t1.gf += s1;
+      t1.ga += s2;
+      t2.gf += s2;
+      t2.ga += s1;
+
+      if (s1 > s2) {
+        t1.w++;
+        t2.l++;
+        t1.pts += 3;
+      } else if (s2 > s1) {
+        t2.w++;
+        t1.l++;
+        t2.pts += 3;
+      } else {
+        t1.d++;
+        t2.d++;
+        t1.pts++;
+        t2.pts++;
+      }
+    }
+
+    const rows = [...byId.values()].map((r) => ({ ...r, diff: r.gf - r.ga }));
+    rows.sort(
+      (a, b) =>
+        b.pts - a.pts ||
+        b.diff - a.diff ||
+        b.gf - a.gf ||
+        a.title.localeCompare(b.title, 'ru')
+    );
+    return rows;
+  }
+
+  async function downloadStandingsJPG() {
+    const rows = calcStandingsT(matches);
+    if (!rows.length) return alert('Нет данных для таблицы.');
+
+    setPosterMode('tbl');
+    setPosterData({ season: new Date().getFullYear(), rows });
+
+    await new Promise((r) => setTimeout(r, 0));
+    // дождаться логотипов
+    await new Promise((resolve) => {
+      const imgs = posterRef.current?.querySelectorAll('img') || [];
+      if (!imgs.length) return resolve();
+      let left = imgs.length;
+      imgs.forEach((img) => {
+        const done = () => (--left === 0 ? resolve() : null);
+        img.complete ? done() : (img.onload = img.onerror = done);
+      });
+    });
+
+    const { toJpeg } = await import('html-to-image');
+    const dataUrl = await toJpeg(posterRef.current, {
+      pixelRatio: 2,
+      quality: 0.95,
+      skipFonts: true,
+      cacheBust: true,
+    });
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `standings.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setPosterData(null);
+  }
 
   const [liveMatch, setLiveMatch] = useState(null);
 
@@ -1859,7 +2252,10 @@ export default function TournamentMatchesTab({ tournamentId }) {
 
   return (
     <div className="grid onecol">
-      <div className="toolbar">
+      <div
+        className="toolbar"
+        style={{ display: 'flex', gap: '20px', marginTop: '20px' }}
+      >
         <button
           className="btn"
           onClick={() =>
@@ -1873,7 +2269,136 @@ export default function TournamentMatchesTab({ tournamentId }) {
         >
           {showCreate ? 'Закрыть форму' : 'Создать матч'}
         </button>
+        <button
+          className="btn"
+          onClick={() => {
+            const d = matches[0]?.date ? new Date(matches[0].date) : new Date();
+            setCalDate(d.toISOString().slice(0, 10));
+            setPosterMode('cal');
+            setShowCalModal(true);
+          }}
+        >
+          Календарь (JPG)
+        </button>
+
+        <button
+          className="btn"
+          onClick={() => {
+            const d = matches.find((m) => m.status === 'FINISHED')?.date
+              ? new Date(matches.find((m) => m.status === 'FINISHED').date)
+              : matches[0]?.date
+              ? new Date(matches[0].date)
+              : new Date();
+            setCalDate(d.toISOString().slice(0, 10));
+            setPosterMode('res');
+            setShowCalModal(true);
+          }}
+        >
+          Результаты (JPG)
+        </button>
+
+        <button
+          className="btn"
+          onClick={() => {
+            setPosterMode('top');
+            setShowCalModal(true);
+          }}
+        >
+          Топ-5 бомбардиров (JPG)
+        </button>
+
+        <button
+          className="btn"
+          onClick={() => {
+            setPosterMode('tbl');
+            setShowCalModal(true);
+          }}
+        >
+          Турнирная таблица (JPG)
+        </button>
       </div>
+
+      {showCalModal && (
+        <div
+          className="modal"
+          style={{
+            display: 'flex',
+            width: '500px',
+            margin: '40px',
+            padding: '20px',
+            gap: '20px',
+            border: '1px solid #000',
+          }}
+          onClick={() => setShowCalModal(false)}
+        >
+          <div className="modal__backdrop" />
+          <div className="modal__dialog" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="modal__header"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '20px',
+              }}
+            >
+              <h3 className="modal__title">
+                {posterMode === 'cal'
+                  ? 'Скачать календарь за день'
+                  : posterMode === 'res'
+                  ? 'Скачать результаты за день'
+                  : posterMode === 'top'
+                  ? 'Скачать ТОП-5 бомбардиров'
+                  : 'Скачать турнирную таблицу'}
+              </h3>
+              <button
+                className="bt"
+                onClick={() => setShowCalModal(false)}
+                style={{ width: '20px', fontSize: '16px' }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal__body">
+              {['cal', 'res'].includes(posterMode) ? (
+                <label className="field">
+                  <span className="field__label">Дата</span>
+                  <input
+                    style={{ width: '400px' }}
+                    className="input"
+                    type="date"
+                    value={calDate}
+                    onChange={(e) => setCalDate(e.target.value)}
+                  />
+                </label>
+              ) : null}
+            </div>
+            <div
+              className="modal__footer"
+              style={{ display: 'flex', gap: '20px', marginTop: '20px' }}
+            >
+              <button
+                className="btn"
+                onClick={
+                  posterMode === 'cal'
+                    ? downloadCalendarJPG
+                    : posterMode === 'res'
+                    ? () => downloadResultsJPG(calDate)
+                    : posterMode === 'top'
+                    ? downloadTopScorersJPG
+                    : downloadStandingsJPG
+                }
+              >
+                Скачать JPG
+              </button>
+              <div className="spacer" />
+              <button className="btn" onClick={() => setShowCalModal(false)}>
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCreate && (
         <section className="card">
@@ -2063,6 +2588,23 @@ export default function TournamentMatchesTab({ tournamentId }) {
           </div>
         </div>
       </section>
+
+      <PosterCal
+        posterRef={posterRef}
+        posterData={posterMode === 'cal' ? posterData : null}
+      />
+      <PosterResults
+        posterRef={posterRef}
+        posterData={posterMode === 'res' ? posterData : null}
+      />
+      <PosterTop5
+        posterRef={posterRef}
+        posterData={posterMode === 'top' ? posterData : null}
+      />
+      <PosterTable
+        posterRef={posterRef}
+        posterData={posterMode === 'tbl' ? posterData : null}
+      />
 
       {liveMatch && (
         <LiveTMatchModal

@@ -230,7 +230,7 @@ export default function Container4() {
           <div className={classes.containerBlockImages}>
             <div className={classes.containerBlockTitle}>
               <span>ФОТО</span>
-              <span onClick={() => navigate('/albums')}>СМОТРЕТЬ ВСЕ</span>
+              <span onClick={() => navigate('/media')}>СМОТРЕТЬ ВСЕ</span>
             </div>
             <span className={classes.containerBlockLine}></span>
 

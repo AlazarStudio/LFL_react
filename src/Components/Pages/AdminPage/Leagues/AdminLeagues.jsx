@@ -395,7 +395,7 @@ export default function AdminLeagues() {
 
             <div className="form__actions">
               <button
-                className="btn btn--primary"
+                className="btn"
                 type="submit"
                 disabled={loading}
               >

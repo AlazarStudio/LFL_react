@@ -17,43 +17,45 @@ import AdminPage from './Components/Pages/AdminPage/Admin/AdminPage';
 import { AuthProvider } from './auth/AuthProvider';
 import PrivateRoute from './auth/PrivateRoute';
 import LoginPage from './Components/Pages/LoginPage';
+import VideosPage from './Components/Pages/VideosPage/VideosPage';
 
 function App() {
   return (
     // <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="news" element={<NewsPage />} />
-            <Route path="news/:id" element={<OneNewsPage />} />
-            <Route path="media" element={<MediaPage />} />
-            <Route path="media/:id" element={<OneMediaPage />} />
-            <Route path="participants">
-              <Route index element={<Navigate to="teams" replace />} />
-              <Route path="teams" element={<ParticipantsPage />} />
-              <Route path="players" element={<ParticipantsPage />} />
-              <Route path="referees" element={<ParticipantsPage />} />
-            </Route>
-            <Route path="/club/:id" element={<ClubPage />} />
-            <Route path="/playerStats/:id" element={<PlayerStatsPage />} />
-            <Route path="/tournaments" element={<CalendarPage />} />
-            <Route path="/match/:matchId" element={<MatchPage />} />
-            <Route path="*" element={<Non_Found_Page />} />
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<HomePage />} />
+          <Route path="news" element={<NewsPage />} />
+          <Route path="news/:id" element={<OneNewsPage />} />
+          <Route path="media" element={<MediaPage />} />
+          <Route path="media/:id" element={<OneMediaPage />} />
+          <Route path="videos" element={<VideosPage />} />
+          <Route path="participants">
+            <Route index element={<Navigate to="teams" replace />} />
+            <Route path="teams" element={<ParticipantsPage />} />
+            <Route path="players" element={<ParticipantsPage />} />
+            <Route path="referees" element={<ParticipantsPage />} />
           </Route>
+          <Route path="/club/:id" element={<ClubPage />} />
+          <Route path="/playerStats/:id" element={<PlayerStatsPage />} />
+          <Route path="/tournaments" element={<CalendarPage />} />
+          <Route path="/match/:matchId" element={<MatchPage />} />
+          <Route path="*" element={<Non_Found_Page />} />
+        </Route>
 
-          <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<LoginPage />} />
 
-          <Route
-            path="/admin/*"
-            element={
-              <PrivateRoute>
-                <AdminPage />
-              </PrivateRoute>
-            }
-          />
-        </Routes>
-      </AuthProvider>
+        <Route
+          path="/admin/*"
+          element={
+            <PrivateRoute>
+              <AdminPage />
+            </PrivateRoute>
+          }
+        />
+      </Routes>
+    </AuthProvider>
     // </BrowserRouter>
   );
 }

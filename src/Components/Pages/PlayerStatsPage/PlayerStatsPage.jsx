@@ -1,36 +1,155 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import serverConfig from '../../../serverConfig';
 import uploadsConfig from '../../../uploadsConfig';
 import classes from './PlayerStatsPage.module.css';
 
-// ---- утилиты
+/* ===================== helpers ===================== */
+
+// дата и время «DD МЕСЯЦ / HH:MM»
 const fmtDate = (d) => {
   try {
     const dt = new Date(d);
-    const dd = dt.toLocaleDateString('ru-RU', {
-      day: '2-digit',
-      month: 'long',
-    });
-    const hh = dt.toLocaleTimeString('ru-RU', {
+    const date = dt
+      .toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' })
+      .toUpperCase();
+    const time = dt.toLocaleTimeString('ru-RU', {
       hour: '2-digit',
       minute: '2-digit',
     });
-    return { date: dd.toUpperCase(), time: hh };
+    return { date, time };
   } catch {
     return { date: '', time: '' };
   }
 };
-const notEmpty = (v) => v !== null && v !== undefined && v !== '';
 
-// типы событий по твоей схеме
-const GOAL_TYPES = new Set(['GOAL', 'PENALTY_SCORED']); // пенальти-забитые идут в голы
+const firstString = (...candidates) =>
+  candidates.find((v) => typeof v === 'string' && v.trim())?.trim() || '';
+
+// Универсальное название лиги
+const getLeagueTitle = (m) =>
+  firstString(
+    m.league?.title,
+    m.league?.name,
+    m.leagueTitle,
+    m.league_name,
+    typeof m.league === 'string' ? m.league : ''
+  );
+
+// Универсальные ID команд
+const getTeamId = (m, side /* 'home' | 'away' */) => {
+  if (side === 'home') {
+    return (
+      m.homeTeamId ??
+      m.home_team_id ??
+      m.team1Id ??
+      m.hostTeamId ??
+      m.host_team_id ??
+      m.homeTeam?.id ??
+      m.home_team?.id ??
+      m.team1?.id ??
+      m.team1Obj?.id ??
+      null
+    );
+  }
+  return (
+    m.guestTeamId ??
+    m.guest_team_id ??
+    m.team2Id ??
+    m.awayTeamId ??
+    m.away_team_id ??
+    m.guestTeam?.id ??
+    m.guest_team?.id ??
+    m.team2?.id ??
+    m.team2Obj?.id ??
+    null
+  );
+};
+
+// Название команды с учётом словаря teamsById
+const getTeamName = (m, side /* 'home' | 'away' */, teamsById) => {
+  if (side === 'home') {
+    const fromMatch = firstString(
+      m.homeTeam?.title,
+      m.homeTeam?.name,
+      m.home_team?.title,
+      m.home_team?.name,
+      m.team1?.title,
+      m.team1?.name,
+      m.team1Obj?.title,
+      m.team1Obj?.name,
+      m.hostTeam?.title,
+      m.hostTeam?.name,
+      m.host_team?.title,
+      m.host_team?.name,
+      m.homeTeamTitle,
+      m.homeTeamName,
+      m.team1Title,
+      m.team1_name,
+      m.hostTeamTitle,
+      m.hostTeamName
+    );
+    if (fromMatch) return fromMatch;
+
+    const id = getTeamId(m, 'home');
+    if (id != null) {
+      const rec = teamsById[Number(id)];
+      if (rec) return rec.title || rec.name || `#${id}`;
+      return `#${id}`;
+    }
+    return '—';
+  } else {
+    const fromMatch = firstString(
+      m.guestTeam?.title,
+      m.guestTeam?.name,
+      m.guest_team?.title,
+      m.guest_team?.name,
+      m.team2?.title,
+      m.team2?.name,
+      m.team2Obj?.title,
+      m.team2Obj?.name,
+      m.awayTeam?.title,
+      m.awayTeam?.name,
+      m.away_team?.title,
+      m.away_team?.name,
+      m.guestTeamTitle,
+      m.guestTeamName,
+      m.team2Title,
+      m.team2_name,
+      m.awayTeamTitle,
+      m.awayTeamName
+    );
+    if (fromMatch) return fromMatch;
+
+    const id = getTeamId(m, 'away');
+    if (id != null) {
+      const rec = teamsById[Number(id)];
+      if (rec) return rec.title || rec.name || `#${id}`;
+      return `#${id}`;
+    }
+    return '—';
+  }
+};
+
+// Универсальный счёт
+const getScore = (m) => {
+  const hs = [m.homeScore, m.team1Score, m.home_score].find(
+    (v) => v !== undefined && v !== null
+  );
+  const gs = [m.guestScore, m.team2Score, m.guest_score].find(
+    (v) => v !== undefined && v !== null
+  );
+  return hs != null && gs != null ? `${hs}:${gs}` : '';
+};
+
+// Типы событий
+const GOAL_TYPES = new Set(['GOAL', 'PENALTY_SCORED']);
 const ASSIST_TYPES = new Set(['ASSIST']);
 const YC_TYPES = new Set(['YELLOW_CARD']);
 const RC_TYPES = new Set(['RED_CARD']);
 
-// название матча «Хозяева 2:1 Гости»
+// Название матча «Хозяева X:Y Гости»
 const buildMatchTitle = (row) => {
   const homeName = row.homeTeamName || '';
   const awayName = row.awayTeamName || '';
@@ -38,9 +157,10 @@ const buildMatchTitle = (row) => {
   return `${homeName}${score}${awayName}`.trim();
 };
 
+/* ===================== component ===================== */
+
 export default function PlayerStatsPage() {
   const { id } = useParams(); // /playerStats/:id
-  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -48,16 +168,18 @@ export default function PlayerStatsPage() {
   const [player, setPlayer] = useState(null);
   const [team, setTeam] = useState(null);
 
-  // источники
-  const [rawStats, setRawStats] = useState([]); // /playerStats (агрегат на игрока — используем опционально)
-  const [matches, setMatches] = useState([]); // матчи команды (с include)
-  const [events, setEvents] = useState([]); // события игрока (может не понадобиться, если возьмём из matches)
+  const [rawStats, setRawStats] = useState([]); // агрегат на игрока (опционально)
+  const [matches, setMatches] = useState([]); // матчи команды
+  const [events, setEvents] = useState([]); // события игрока
+
+  // Справочник команд: { [id]: { id, title, name, ... } }
+  const [teamsById, setTeamsById] = useState({});
 
   // фильтры
   const [season, setSeason] = useState('ALL');
   const [year, setYear] = useState('ALL');
 
-  // ===== ЗАГРУЗКА ОСНОВЫ =====
+  // ===== загрузка базовых данных =====
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -69,7 +191,7 @@ export default function PlayerStatsPage() {
         const pData = p?.data || null;
         if (alive) setPlayer(pData);
 
-        // команда
+        // команда игрока
         if (pData?.teamId) {
           try {
             const t = await axios.get(`${serverConfig}/teams/${pData.teamId}`);
@@ -77,7 +199,7 @@ export default function PlayerStatsPage() {
           } catch {}
         }
 
-        // агрегат игрока (может пригодиться)
+        // агрегат игрока
         try {
           const s = await axios.get(`${serverConfig}/playerStats`, {
             params: { filter: JSON.stringify({ playerId: pData?.id }) },
@@ -85,7 +207,7 @@ export default function PlayerStatsPage() {
           if (alive) setRawStats(Array.isArray(s.data) ? s.data : []);
         } catch {}
 
-        // матчи команды (контроллер уже include-ит команды/лигу/события/и т.п.)
+        // матчи команды
         let m;
         try {
           if (pData?.teamId) {
@@ -105,15 +227,29 @@ export default function PlayerStatsPage() {
         } catch {
           m = await axios.get(`${serverConfig}/matches`);
         }
-        if (alive) setMatches(Array.isArray(m.data) ? m.data : []);
+        const matchesArr = Array.isArray(m.data) ? m.data : [];
+        if (alive) setMatches(matchesArr);
 
-        // события этого игрока (опционально; если не вернётся — возьмём из matches)
+        // события игрока
         try {
           const ev = await axios.get(`${serverConfig}/matchEvents`, {
             params: { filter: JSON.stringify({ playerId: pData?.id }) },
           });
           if (alive) setEvents(Array.isArray(ev.data) ? ev.data : []);
         } catch {}
+
+        // ===== подгрузка справочника команд (чтобы по id получить название) =====
+        try {
+          const teamsRes = await axios.get(`${serverConfig}/teams`);
+          const arr = Array.isArray(teamsRes.data) ? teamsRes.data : [];
+          const map = {};
+          arr.forEach((t) => {
+            if (t && t.id != null) map[Number(t.id)] = t;
+          });
+          if (alive) setTeamsById(map);
+        } catch {
+          if (alive) setTeamsById({});
+        }
       } catch (e) {
         if (alive) setErr('Не удалось загрузить страницу игрока');
       } finally {
@@ -125,7 +261,7 @@ export default function PlayerStatsPage() {
     };
   }, [id]);
 
-  // ===== Справочники =====
+  // годы для фильтра
   const yearsList = useMemo(() => {
     const setYears = new Set();
     (matches || []).forEach((m) => {
@@ -135,6 +271,7 @@ export default function PlayerStatsPage() {
     return ['ALL', ...arr];
   }, [matches]);
 
+  // сезоны для фильтра
   const seasonsList = useMemo(() => {
     const s = new Set();
     (matches || []).forEach((m) => {
@@ -146,14 +283,13 @@ export default function PlayerStatsPage() {
     return ['ALL', ...arr];
   }, [matches]);
 
-  // ===== Список событий игрока: из /matchEvents или из include matches.events =====
+  // события игрока: /matchEvents или собранные из include в матчах
   const playerEvents = useMemo(() => {
     if (Array.isArray(events) && events.length) return events;
     const out = [];
     (matches || []).forEach((m) => {
       (m?.events || []).forEach((ev) => {
         if (ev?.playerId === player?.id) {
-          // убедимся, что есть matchId
           out.push({ ...ev, matchId: ev.matchId || m.id });
         }
       });
@@ -161,9 +297,9 @@ export default function PlayerStatsPage() {
     return out;
   }, [events, matches, player?.id]);
 
-  // ===== Нормализация строк по матчам из matches + playerEvents =====
+  // строки статистики по матчам (здесь подставляем названия команд через teamsById)
   const computedStatsRows = useMemo(() => {
-    // сгруппируем события игрока по матчу
+    // сгруппировать события по matchId
     const byMatch = new Map();
     (playerEvents || []).forEach((ev) => {
       const mid = ev.matchId;
@@ -176,14 +312,17 @@ export default function PlayerStatsPage() {
     const rows = [];
     (matches || []).forEach((m) => {
       const evs = byMatch.get(m.id) || [];
-      if (!evs.length) return; // игрок не отметился событием — можно скрыть строку, как и раньше
+      if (!evs.length) return; // нет событий игрока — пропускаем
 
       const date = m.date || null;
-      const league = m.league?.title || '—';
+      const league = getLeagueTitle(m) || '—';
 
-      const homeTeamName = m.homeTeam?.title || '';
-      const awayTeamName = m.guestTeam?.title || '';
-      const isHome = m.homeTeamId === team?.id;
+      const homeId = getTeamId(m, 'home');
+      const awayId = getTeamId(m, 'away');
+      const homeTeamName = getTeamName(m, 'home', teamsById);
+      const awayTeamName = getTeamName(m, 'away', teamsById);
+
+      const isHome = Number(homeId) === Number(team?.id);
 
       let goals = 0,
         pens = 0,
@@ -199,16 +338,11 @@ export default function PlayerStatsPage() {
         if (ASSIST_TYPES.has(type)) assists += 1;
         if (YC_TYPES.has(type)) yellow += 1;
         if (RC_TYPES.has(type)) red += 1;
-        // PENALTY_MISSED / SUBSTITUTION здесь не считаем
       });
 
-      const score = [m.homeScore, m.guestScore].every(
-        (v) => v !== null && v !== undefined
-      )
-        ? `${m.homeScore}:${m.guestScore}`
-        : '';
+      const score = getScore(m);
 
-      // сезон
+      // сезонная строка
       let seasonStr = null;
       if (date) {
         const y = new Date(date).getFullYear();
@@ -236,9 +370,9 @@ export default function PlayerStatsPage() {
     });
 
     return rows.sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [matches, playerEvents, team?.id, team?.title]);
+  }, [matches, playerEvents, team?.id, team?.title, teamsById]);
 
-  // ===== Фильтры =====
+  // применяем фильтры
   const filteredRows = useMemo(() => {
     return (computedStatsRows || []).filter((r) => {
       if (season !== 'ALL' && r.season && r.season !== season) return false;
@@ -250,9 +384,9 @@ export default function PlayerStatsPage() {
     });
   }, [computedStatsRows, season, year]);
 
-  // ===== Итоги (по отфильтрованным матчам) =====
+  // итоги
   const totals = useMemo(() => {
-    const games = filteredRows.length; // «игры» как число строк (есть события игрока)
+    const games = filteredRows.length;
     const goals = filteredRows.reduce((s, r) => s + (r.goals || 0), 0);
     const pens = filteredRows.reduce((s, r) => s + (r.pens || 0), 0);
     const assists = filteredRows.reduce((s, r) => s + (r.assists || 0), 0);
@@ -261,7 +395,8 @@ export default function PlayerStatsPage() {
     return { games, goals, pens, assists, yellow, red };
   }, [filteredRows]);
 
-  // ===== Рендер =====
+  /* ===================== render ===================== */
+
   if (loading) return <div style={{ padding: 16 }}>Загрузка…</div>;
   if (err || !player)
     return <div style={{ padding: 16 }}>{err || 'Игрок не найден'}</div>;
@@ -294,11 +429,17 @@ export default function PlayerStatsPage() {
                 onError={(e) => (e.currentTarget.style.display = 'none')}
               />
             ) : (
-              <div className={classes.photoStub}>{player.name?.[0] || '?'}</div>
+              <img
+                src={'/images/bgPlCard.png'}
+                alt={player.name}
+                loading="lazy"
+                onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
+                className={classes.photo}
+              />
             )}
           </div>
           <div className={classes.heroRight}>
-            <img src="../images/Group 201.png" className={classes.red} />
+            <img src="../images/Group 201.png" className={classes.red} alt="" />
             <div className={classes.nameBlock}>
               <div className={classes.playerName}>{player.name}</div>
             </div>
@@ -380,7 +521,7 @@ export default function PlayerStatsPage() {
             <div className={`${classes.td} ${classes.rc}`}>КК</div>
           </div>
 
-          {/* строка итогов под шапкой */}
+          {/* строка итогов */}
           <div className={`${classes.tr} ${classes.trHead1}`}>
             <div className={`${classes.td} ${classes.league}`}>
               <b>{team?.title || '—'}</b>
