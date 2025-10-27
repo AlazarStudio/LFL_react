@@ -34,7 +34,11 @@ export default function AdminTeams() {
     city: '',
     logo: [],
     images: [],
+    games: 0,
+    wins: 0,
+    goals: 0,
   });
+
   const isEdit = useMemo(() => form.id != null, [form.id]);
 
   const logoInputRef = useRef(null);
@@ -67,7 +71,17 @@ export default function AdminTeams() {
   }, [q]);
 
   function resetForm() {
-    setForm({ id: null, title: '', city: '', logo: [], images: [] });
+    setForm({
+      id: null,
+      title: '',
+      city: '',
+      logo: [],
+      images: [],
+      games: 0,
+      wins: 0,
+      goals: 0,
+    });
+
     setError('');
     if (logoInputRef.current) logoInputRef.current.value = '';
     if (imagesInputRef.current) imagesInputRef.current.value = '';
@@ -80,8 +94,10 @@ export default function AdminTeams() {
       city: t.city || '',
       logo: Array.isArray(t.logo) ? t.logo : [],
       images: Array.isArray(t.images) ? t.images : [],
+      games: Number(t.games ?? 0),
+      wins: Number(t.wins ?? 0),
+      goals: Number(t.goals ?? 0),
     });
-    setError('');
   }
 
   // загрузка пачкой — бэкенд ждёт ключ 'files' на /api/upload
@@ -145,6 +161,9 @@ export default function AdminTeams() {
       city: form.city.trim(),
       logo: form.logo, // сюда уже положены '/uploads/...' после upload
       images: form.images, // сюда уже положены '/uploads/...' после upload
+      games: Number(form.games) || 0,
+      wins: Number(form.wins) || 0,
+      goals: Number(form.goals) || 0,
     };
     try {
       const url = isEdit ? `${API}/${form.id}` : API;
@@ -306,6 +325,45 @@ export default function AdminTeams() {
             </label>
           </div>
 
+          <div className="form__row">
+            <label className="field">
+              <span className="field__label">Игры</span>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={form.games}
+                onChange={(e) =>
+                  setForm((s) => ({ ...s, games: Number(e.target.value || 0) }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span className="field__label">Победы</span>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={form.wins}
+                onChange={(e) =>
+                  setForm((s) => ({ ...s, wins: Number(e.target.value || 0) }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span className="field__label">Голы</span>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={form.goals}
+                onChange={(e) =>
+                  setForm((s) => ({ ...s, goals: Number(e.target.value || 0) }))
+                }
+              />
+            </label>
+          </div>
+
           <div className="form__actions">
             <button
               className="btn btn--primary"
@@ -329,11 +387,13 @@ export default function AdminTeams() {
 
       <section className="card">
         <div className="table">
-          <div className="table__head">
+          <div className="table__headTeam">
             <div>ID</div>
             <div>Название</div>
             <div>Город</div>
-            {/* <div>Лого</div> */}
+            <div>Игры</div>
+            <div>Победы</div>
+            <div>Голы</div>
             <div>Действия</div>
           </div>
           <div className="table__body">
@@ -343,10 +403,13 @@ export default function AdminTeams() {
             )}
             {!loading &&
               teams.map((t) => (
-                <div className="table__row" key={t.id}>
+                <div className="table__rowTeam" key={t.id}>
                   <div>#{t.id}</div>
                   <div className="cell-strong">{t.title}</div>
                   <div>{t.city}</div>
+                  <div>{t.games ?? 0}</div>
+                  <div>{t.wins ?? 0}</div>
+                  <div>{t.goals ?? 0}</div>
                   {/* <div>
                     {t.logo?.length ? (
                       <img

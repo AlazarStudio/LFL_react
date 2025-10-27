@@ -252,7 +252,7 @@ export default function StadiumsTab() {
         <h3>Стадионы</h3>
         {err && <div className="alert alert--error">{err}</div>}
         <div className="table">
-          <div className="table__head">
+          <div className="table__headStad">
             <div
               style={{ width: 80, cursor: 'pointer' }}
               onClick={() => toggleSort('id')}
@@ -285,7 +285,7 @@ export default function StadiumsTab() {
             {rows.map((r) => {
               const isEdit = editId === r.id;
               return (
-                <div key={r.id} className="table__row">
+                <div key={r.id} className="table__rowStad">
                   <div style={{ width: 80 }}>#{r.id}</div>
                   <div style={{ minWidth: 220 }}>
                     {!isEdit ? (

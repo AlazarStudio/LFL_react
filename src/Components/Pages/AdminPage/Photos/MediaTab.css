@@ -107,15 +107,15 @@
 .table {
   width: 100%;
 }
-.table__head,
-.table__row {
+/* .table__headImg,
+.table__rowImg {
   display: grid;
   grid-template-columns: 70px 180px minmax(260px, 1fr) 200px 220px;
   gap: 12px;
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid #eee;
-}
+} */
 .table__head {
   font-weight: 600;
   color: #444;

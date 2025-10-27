@@ -418,7 +418,7 @@ export default function AdminLeagues() {
 
       <section className="card">
         <div className="table">
-          <div className="table__head">
+          <div className="table__headLeag">
             <div>ID</div>
             <div>Название</div>
             <div>Сезон</div>
@@ -434,7 +434,7 @@ export default function AdminLeagues() {
             )}
             {!loading &&
               rows.map((r) => (
-                <div className="table__row" key={r.id}>
+                <div className="table__rowLeag" key={r.id}>
                   <div>#{r.id}</div>
                   <div className="cell-strong">{r.title}</div>
                   <div>{r.season || '—'}</div>

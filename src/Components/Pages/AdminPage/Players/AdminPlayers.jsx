@@ -5,6 +5,7 @@ import serverConfig from '../../../../serverConfig'; // например: http:/
 import uploadsConfig from '../../../../uploadsConfig'; // например: http://localhost:5000
 import '../Teams/Teams.css'; // переиспользуем стили таблиц/форм
 
+const STATS_API = `${serverConfig}/playerStats`;
 const PLAYERS_API = `${serverConfig}/players`;
 const TEAMS_API = `${serverConfig}/teams`;
 const UPLOAD_API = `${serverConfig}/upload`;
@@ -48,6 +49,18 @@ export default function AdminPlayers() {
   const [posFilter, setPosFilter] = useState('');
   const [hasUserFilter, setHasUserFilter] = useState(''); // '', 'true', 'false'
 
+  const [statsByPid, setStatsByPid] = useState({}); // { [playerId]: statRow }
+  const [statOpen, setStatOpen] = useState(null); // playerId, для инлайн-редактора
+  const [statEdit, setStatEdit] = useState({
+    id: null,
+    playerId: null,
+    goals: 0,
+    assists: 0,
+    yellow_cards: 0,
+    red_cards: 0,
+    matchesPlayed: 0,
+  });
+
   // справочники
   const [teams, setTeams] = useState([]); // для фильтра и форм
   const teamMap = useMemo(
@@ -70,6 +83,118 @@ export default function AdminPlayers() {
   const imgRef = useRef(null);
 
   // ------- utils
+
+  const formatDateDMY = (value) => {
+    if (!value) return '—';
+    const s =
+      typeof value === 'string'
+        ? value
+        : value instanceof Date
+        ? value.toISOString()
+        : String(value);
+    // сначала пытаемся выцепить YYYY-MM-DD из строки (без таймзоны/времени)
+    const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}.${m[2]}.${m[1]}`;
+    // фолбэк: парсим как Date и выводим в UTC, чтобы не было сдвига по TZ
+    try {
+      const d = new Date(s);
+      const dd = String(d.getUTCDate()).padStart(2, '0');
+      const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const yyyy = d.getUTCFullYear();
+      return `${dd}.${mm}.${yyyy}`;
+    } catch {
+      return '—';
+    }
+  };
+
+  const fetchStat = async (playerId) => {
+    const params = new URLSearchParams({
+      range: JSON.stringify([0, 0]),
+      sort: JSON.stringify(['id', 'ASC']),
+      filter: JSON.stringify({ playerId }),
+    });
+    const r = await fetch(`${STATS_API}?${params}`);
+    if (!r.ok) return null;
+    const arr = await r.json();
+    return Array.isArray(arr) && arr[0] ? arr[0] : null;
+  };
+
+  const loadStatsFor = async (playerIds = []) => {
+    const pairs = await Promise.all(
+      playerIds.map(async (pid) => [pid, await fetchStat(pid)])
+    );
+    setStatsByPid(Object.fromEntries(pairs));
+  };
+
+  const openStatEditor = (p) => {
+    const s = statsByPid[p.id] || {
+      id: null,
+      playerId: p.id,
+      goals: 0,
+      assists: 0,
+      yellow_cards: 0,
+      red_cards: 0,
+      matchesPlayed: 0,
+    };
+    setStatEdit({
+      id: s.id ?? null,
+      playerId: p.id,
+      goals: Number(s.goals ?? 0),
+      assists: Number(s.assists ?? 0),
+      yellow_cards: Number(s.yellow_cards ?? 0),
+      red_cards: Number(s.red_cards ?? 0),
+      matchesPlayed: Number(s.matchesPlayed ?? 0),
+    });
+    setStatOpen(p.id);
+  };
+
+  const cancelStatEdit = () => {
+    setStatOpen(null);
+  };
+
+  const saveStat = async () => {
+    setLoading(true);
+    try {
+      // 1) если id не знаем — подгрузим
+      let id = statEdit.id;
+      if (!id) {
+        const existing = await fetchStat(statEdit.playerId);
+        if (existing?.id) id = existing.id;
+      }
+
+      // 2) пэйлоад
+      const payload = {
+        playerId: statEdit.playerId,
+        goals: Number(statEdit.goals || 0),
+        assists: Number(statEdit.assists || 0),
+        yellow_cards: Number(statEdit.yellow_cards || 0),
+        red_cards: Number(statEdit.red_cards || 0),
+        matchesPlayed: Number(statEdit.matchesPlayed || 0),
+      };
+
+      // 3) либо обновляем, либо создаём
+      const url = id ? `${STATS_API}/${id}` : STATS_API;
+      const method = id ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const txt = await res.text();
+      if (!res.ok) throw new Error(txt || `Stats HTTP ${res.status}`);
+
+      // 4) обновим локальный кэш и закроем форму
+      const fresh = await fetchStat(statEdit.playerId);
+      setStatsByPid((m) => ({ ...m, [statEdit.playerId]: fresh }));
+      setStatOpen(null);
+    } catch (e) {
+      console.error(e);
+      setErr(e.message || 'Не удалось сохранить статы');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const uploadMany = async (fileList) => {
     const files = Array.from(fileList || []);
     if (!files.length) return [];
@@ -121,6 +246,10 @@ export default function AdminPlayers() {
     if (!res.ok) throw new Error(`Players HTTP ${res.status}`);
     const data = await res.json();
     setPlayers(Array.isArray(data) ? data : []);
+    try {
+      const ids = (Array.isArray(data) ? data : []).map((p) => p.id);
+      await loadStatsFor(ids);
+    } catch {}
   };
 
   useEffect(() => {
@@ -562,7 +691,7 @@ export default function AdminPlayers() {
       {/* Таблица */}
       <section className="card">
         <div className="table">
-          <div className="table__head">
+          <div className="table__headPl">
             <div>ID</div>
             <div>Фото</div>
             <div>Имя</div>
@@ -570,76 +699,184 @@ export default function AdminPlayers() {
             <div>Поз.</div>
             <div>№</div>
             <div>Д.р.</div>
+            <div>Г</div>
+            <div>П</div>
+            <div>ЖК</div>
+            <div>КК</div>
+            <div>Игр</div>
             <div>Действия</div>
           </div>
           <div className="table__body">
-            {players.map((p) => (
-              <div className="table__row" key={p.id}>
-                <div>#{p.id}</div>
-                <div>
-                  {p.images?.length ? (
-                    <img
-                      src={buildSrc(p.images[0])}
-                      alt=""
-                      style={{
-                        maxWidth: 48,
-                        maxHeight: 48,
-                        objectFit: 'cover',
-                        borderRadius: 6,
-                      }}
-                    />
-                  ) : (
-                    '—'
-                  )}
-                </div>
-                <div className="cell-strong">{p.name}</div>
-                <div>{p.team?.title || teamMap[p.teamId] || '—'}</div>
-                <div>{positionRu(p.position)}</div>
-                <div>{p.number ?? '—'}</div>
-                <div>
-                  {p.birthDate ? String(p.birthDate).slice(0, 10) : '—'}
-                </div>
-                <div className="table__actions" style={{ gap: 8 }}>
-                  <button className="btn btn--sm" onClick={() => startEdit(p)}>
-                    Редактировать
-                  </button>
-                  <button
-                    className="btn "
-                    onClick={() => remove(p.id)}
-                  >
-                    Удалить
-                  </button>
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      gap: 6,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <select
-                      className="input"
-                      value={transferTo}
-                      onChange={(e) => setTransferTo(e.target.value)}
-                      style={{ height: 28 }}
-                    >
-                      <option value="">→ Трансфер в…</option>
-                      {teams.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.title}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="btn btn--sm"
-                      disabled={!transferTo}
-                      onClick={() => doTransfer(p.id)}
-                    >
-                      OK
-                    </button>
+            {players.map((p) => {
+              const s = statsByPid[p.id];
+              return (
+                <React.Fragment key={p.id}>
+                  <div className="table__rowPl">
+                    <div>#{p.id}</div>
+                    <div>
+                      {p.images?.length ? (
+                        <img
+                          src={buildSrc(p.images[0])}
+                          alt=""
+                          style={{
+                            maxWidth: 48,
+                            maxHeight: 48,
+                            objectFit: 'cover',
+                            borderRadius: 6,
+                          }}
+                        />
+                      ) : (
+                        '—'
+                      )}
+                    </div>
+                    <div className="cell-strong">{p.name}</div>
+                    <div>{p.team?.title || teamMap[p.teamId] || '—'}</div>
+                    <div>{positionRu(p.position)}</div>
+                    <div>{p.number ?? '—'}</div>
+                    <div>
+                      <div>{formatDateDMY(p.birthDate)}</div>
+                    </div>
+                    <div>{s ? s.goals : '—'}</div>
+                    <div>{s ? s.assists : '—'}</div>
+                    <div>{s ? s.yellow_cards : '—'}</div>
+                    <div>{s ? s.red_cards : '—'}</div>
+                    <div>{s ? s.matchesPlayed : '—'}</div>
+                    <div className="table__actions" style={{ gap: 8 }}>
+                      <button
+                        className="btn btn--sm"
+                        onClick={() => startEdit(p)}
+                      >
+                        Редактировать
+                      </button>
+                      <button className="btn" onClick={() => remove(p.id)}>
+                        Удалить
+                      </button>
+                      <button
+                        className="btn btn--sm"
+                        onClick={() => openStatEditor(p)}
+                      >
+                        Статистика
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+
+                  {statOpen === p.id && (
+                    <div
+                      className="table__row"
+                      style={{ background: 'rgba(0,0,0,0.05)' }}
+                    >
+                      <div style={{ width: '100%' }}>
+                        <form
+                          className="form"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            saveStat().catch((err) =>
+                              setErr(
+                                err.message || 'Не удалось сохранить статы'
+                              )
+                            );
+                          }}
+                        >
+                          <div className="form__row">
+                            <label className="field">
+                              <span className="field__label">Голы</span>
+                              <input
+                                className="input"
+                                type="number"
+                                min="0"
+                                value={statEdit.goals}
+                                onChange={(e) =>
+                                  setStatEdit((s) => ({
+                                    ...s,
+                                    goals: Number(e.target.value || 0),
+                                  }))
+                                }
+                              />
+                            </label>
+                            <label className="field">
+                              <span className="field__label">Пасы</span>
+                              <input
+                                className="input"
+                                type="number"
+                                min="0"
+                                value={statEdit.assists}
+                                onChange={(e) =>
+                                  setStatEdit((s) => ({
+                                    ...s,
+                                    assists: Number(e.target.value || 0),
+                                  }))
+                                }
+                              />
+                            </label>
+                            <label className="field">
+                              <span className="field__label">ЖК</span>
+                              <input
+                                className="input"
+                                type="number"
+                                min="0"
+                                value={statEdit.yellow_cards}
+                                onChange={(e) =>
+                                  setStatEdit((s) => ({
+                                    ...s,
+                                    yellow_cards: Number(e.target.value || 0),
+                                  }))
+                                }
+                              />
+                            </label>
+                            <label className="field">
+                              <span className="field__label">КК</span>
+                              <input
+                                className="input"
+                                type="number"
+                                min="0"
+                                value={statEdit.red_cards}
+                                onChange={(e) =>
+                                  setStatEdit((s) => ({
+                                    ...s,
+                                    red_cards: Number(e.target.value || 0),
+                                  }))
+                                }
+                              />
+                            </label>
+                            <label className="field">
+                              <span className="field__label">Матчей</span>
+                              <input
+                                className="input"
+                                type="number"
+                                min="0"
+                                value={statEdit.matchesPlayed}
+                                onChange={(e) =>
+                                  setStatEdit((s) => ({
+                                    ...s,
+                                    matchesPlayed: Number(e.target.value || 0),
+                                  }))
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="form__actions">
+                            <button
+                              className="btn btn--primary"
+                              type="submit"
+                              disabled={loading}
+                            >
+                              {statEdit.id ? 'Сохранить' : 'Создать'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn--ghost"
+                              onClick={cancelStatEdit}
+                            >
+                              Отмена
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
             {players.length === 0 && (
               <div className="table__row muted">Нет данных</div>
             )}

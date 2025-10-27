@@ -82,6 +82,7 @@ export default function AdminSidebar() {
         >
           Фото
         </NavLink>
+        <NavLink to="/admin/tournaments/live">Live монитор</NavLink>
       </nav>
       <div className="sidebar__footer">v1.0</div>
     </aside>

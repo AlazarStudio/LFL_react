@@ -457,7 +457,7 @@ export default function AdminReferees() {
 
         {/* Таблица */}
         <div className="table">
-          <div className="table__head">
+          <div className="table__headImg">
             <button className="thbtn" onClick={() => toggleSort('id')}>
               ID
             </button>
@@ -474,7 +474,7 @@ export default function AdminReferees() {
               <div className="table__row muted">Ничего не найдено</div>
             )}
             {rows.map((r) => (
-              <div className="table__row" key={r.id}>
+              <div className="table__rowImg" key={r.id}>
                 <div>#{r.id}</div>
                 <div>
                   {editId === r.id ? (

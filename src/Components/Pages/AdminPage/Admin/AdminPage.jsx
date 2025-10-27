@@ -16,6 +16,7 @@ import StadiumsTab from '../Stadiums/StadiumsTab';
 import NewsTab from '../News/NewsTab';
 import PhotosTab from '../Photos/PhotosTab';
 import VideosTab from '../Videos/VideosTab';
+import LiveMatchMonitor from './Tournaments/LiveMatchMonitor';
 
 export default function AdminPage() {
   return (
@@ -36,6 +37,8 @@ export default function AdminPage() {
           <Route path="news" element={<NewsTab />} />
           <Route path="photos" element={<PhotosTab />} />
           <Route path="videos" element={<VideosTab />} />
+
+          <Route path="tournaments/live" element={<LiveMatchMonitor />} />
 
           {/* ▼ новое */}
           <Route path="tournaments" element={<AdminTournaments />} />

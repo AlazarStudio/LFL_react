@@ -1,0 +1,51 @@
+.live-watch .scoreboard__row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+.live-watch .team {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.live-watch .team--right {
+  justify-content: flex-end;
+}
+.live-watch .team__logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+.live-watch .score {
+  text-align: center;
+}
+.live-watch .score__value {
+  font-size: 28px;
+  line-height: 1;
+}
+.badge {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #eee;
+  font-size: 12px;
+}
+.badge--live {
+  background: #ffe2e2;
+}
+.badge--finished {
+  background: #e2ffe5;
+}
+.badge--scheduled {
+  background: #e2e7ff;
+}
+.twocol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+ul.plain {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}

@@ -769,7 +769,7 @@ export default function NewsTab() {
 
       <section className="card">
         <div className="table">
-          <div className="table__head">
+          <div className="table__headNews">
             <div>ID</div>
             <div>Дата</div>
             <div>Заголовок и описание</div>
@@ -786,7 +786,7 @@ export default function NewsTab() {
               rows.map((r) => {
                 const preview = cut(stripTags(r.description || ''), 160);
                 return (
-                  <div className="table__row" key={r.id}>
+                  <div className="table__rowNews" key={r.id}>
                     <div>#{r.id}</div>
                     <div>{dtLoc(r.date)}</div>
                     <div className="cell-strong">

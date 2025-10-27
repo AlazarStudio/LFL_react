@@ -1,13 +1,26 @@
 // src/Components/Pages/AdminPage/Admin/Tournaments/Tabs/TournamentMatchesTab.jsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import serverConfig from '../../../../../../serverConfig';
-import './TournamentMatchesTab.css';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { io } from 'socket.io-client';
+import { useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 
+import serverConfig from '../../../../../../serverConfig';
 import uploadsConfig from '../../../../../../uploadsConfig';
+
 import PosterCal from '../../../Leagues/tabs/posters/PosterCal';
 import PosterResults from '../../../Leagues/tabs/posters/PosterResults';
 import PosterTop5 from '../../../Leagues/tabs/posters/PosterTop5';
 import PosterTable from '../../../Leagues/tabs/posters/PosterTable';
+
+import './TournamentMatchesTab.css';
+
+const SOCKET_URL = String(serverConfig || '').replace(/\/api\/?$/, '');
 
 /* ===================== API ===================== */
 const API_T = `${serverConfig}/tournaments`;
@@ -15,7 +28,6 @@ const API_REFS = `${serverConfig}/referees`;
 const API_STADIUMS = `${serverConfig}/stadiums`;
 
 /* ===================== Утилиты ===================== */
-
 const ASSETS_BASE = String(uploadsConfig || '').replace(/\/api\/?$/, '');
 const buildSrc = (p) =>
   !p ? '' : /^https?:\/\//i.test(p) ? p : `${ASSETS_BASE}${p}`;
@@ -58,12 +70,106 @@ const escapeHtml = (s) =>
     .replace(/>/g, '&gt;');
 
 /* ===================== Модалка: Провести турнирный матч ===================== */
-function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
-  // match: { id, date, status, team1TTId, team2TTId, ... }
-  // ttIndex: Map<TT.id, { team, roster, rosterIndexByPlayerId }>
+function LiveTMatchModal({
+  match,
+  ttIndex,
+  onClose,
+  onScoreChanged,
+  onStatusChanged,
+}) {
+  // ------- helpers (локальные, чтобы не было внешних зависимостей) -------
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+  const fmt2 = (n) => String(n).padStart(2, '0');
+  const dtLoc = (s) => {
+    try {
+      return new Date(s).toLocaleString();
+    } catch {
+      return String(s || '');
+    }
+  };
 
+  // ------- константы API/Socket -------
+  const SOCKET_URL = String(serverConfig || '').replace(/\/api\/?$/, '');
+  const API_T = `${serverConfig}/tournaments`;
+  const API_REFS = `${serverConfig}/referees`;
+
+  // ------- socket / состояние часов -------
+  const socketRef = useRef(null);
+  const [clock, setClock] = useState(null);
+  const [halfMinutes, setHalfMinutes] = useState(45);
+  const [halves, setHalves] = useState(2);
+
+  const halfMinutesFromServer = useMemo(
+    () => Number(clock?.halfMinutes ?? halfMinutes ?? 45),
+    [clock?.halfMinutes, halfMinutes]
+  );
+
+  useEffect(() => {
+    const s = io(SOCKET_URL, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+    });
+    socketRef.current = s;
+    const room = `tmatch:${match.id}`;
+
+    s.on('connect', () => {
+      s.emit('room:join', room);
+      s.emit('tmatch:clock:get', { matchId: match.id }, (srvClock) => {
+        if (srvClock) setClock(srvClock);
+      });
+    });
+    s.on('tmatch:clock', setClock);
+
+    return () => {
+      try {
+        s.emit('room:leave', room);
+        s.off('tmatch:clock', setClock);
+        s.close();
+      } catch {}
+      socketRef.current = null;
+    };
+  }, [SOCKET_URL, match.id]);
+
+  const pushClock = useCallback(
+    (patch) => {
+      socketRef.current?.emit('tmatch:clock:set', {
+        matchId: match.id,
+        ...patch,
+      });
+    },
+    [match.id]
+  );
+
+  // ------- служебные состояния/ошибки -------
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+
+  async function setMatchStatus(next) {
+    try {
+      setStatus(next); // оптимистично
+      let res = await fetch(`${serverConfig}/tournament-matches/${match.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) {
+        res = await fetch(
+          `${serverConfig}/tournament-matches/${match.id}/status`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: next }),
+          }
+        );
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onStatusChanged?.(match.id, next);
+    } catch (e) {
+      console.error(e);
+      setErr(e.message || 'Не удалось обновить статус матча');
+      setStatus(match.status || 'SCHEDULED'); // откат
+    }
+  }
 
   useEffect(() => {
     const stopEsc = (e) => {
@@ -76,11 +182,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
     return () => document.removeEventListener('keydown', stopEsc, true);
   }, []);
 
-  // Параметры турнира
-  const [halfMinutes, setHalfMinutes] = useState(45);
-  const [halves, setHalves] = useState(2);
-
-  // Судьи
+  // ------- справочники: судьи/участники/составы -------
   const [referees, setReferees] = useState([]);
   const refereeIndex = useMemo(() => {
     const m = new Map();
@@ -90,28 +192,18 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
   const refNameById = (id) =>
     refereeIndex.get(Number(id))?.name || (id ? `#${id}` : '');
 
-  // Участники (опубликованные на матч)
   const [participants, setParticipants] = useState([]);
   const [lineup1, setLineup1] = useState([]);
   const [lineup2, setLineup2] = useState([]);
   const [lineupFallback, setLineupFallback] = useState(false);
 
-  // События
+  // ------- события/счёт/статус -------
   const [events, setEvents] = useState([]);
-
-  // Счёт/статус
   const [score1, setScore1] = useState(match.team1Score ?? 0);
   const [score2, setScore2] = useState(match.team2Score ?? 0);
   const [status, setStatus] = useState(match.status || 'SCHEDULED');
 
-  // Тайм/таймер
-  const [currentHalf, setCurrentHalf] = useState(1);
-  const [running, setRunning] = useState(false);
-  const [halfStartTS, setHalfStartTS] = useState(null);
-  const [elapsed, setElapsed] = useState(0);
-  const tickRef = useRef(null);
-
-  // Формы событий (по сторонам)
+  // ------- формы быстрого события -------
   const initialEvt = {
     type: '',
     playerId: '',
@@ -123,7 +215,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
   const [evt1, setEvt1] = useState({ ...initialEvt });
   const [evt2, setEvt2] = useState({ ...initialEvt });
 
-  // Редактирование события
+  // ------- редактирование события -------
   const [editEventId, setEditEventId] = useState(null);
   const [editDraft, setEditDraft] = useState({
     type: '',
@@ -136,7 +228,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
     _tournamentTeamId: null,
   });
 
-  /* ---------- Константы типов ---------- */
+  // ------- константы типов -------
   const QUICK_TYPES = [
     { key: 'GOAL', label: 'Гол', icon: '⚽' },
     { key: 'PENALTY_SCORED', label: 'Гол (пен.)', icon: '🥅' },
@@ -169,7 +261,30 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
   };
   const statusRu = (s) => STATUS_RU[s] || s || '';
 
-  /* ---------- Загрузка данных ---------- */
+  // ------- время/таймер -------
+  const computeElapsedSec = useCallback((ck) => {
+    if (!ck) return 0;
+    let e = Number(ck.baseElapsedSec || 0) + Number(ck.addedSec || 0);
+    const startedAtMs = ck?.startedAt
+      ? typeof ck.startedAt === 'string'
+        ? Date.parse(ck.startedAt)
+        : Number(ck.startedAt)
+      : null;
+    if (!ck.isPaused && startedAtMs) {
+      e += Math.max(0, (Date.now() - startedAtMs) / 1000);
+    }
+    return Math.floor(e);
+  }, []);
+
+  const getHalfMinuteNow = useCallback(
+    (ck, halfMins) => {
+      const elapsedSec = computeElapsedSec(ck);
+      return clamp(Math.floor(elapsedSec / 60) + 1, 1, Number(halfMins || 45));
+    },
+    [computeElapsedSec]
+  );
+
+  // ------- загрузка данных -------
   async function loadTournament() {
     const res = await fetch(`${API_T}/${match.tournamentId}`);
     const data = await res.json();
@@ -218,19 +333,6 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
       setLineupFallback(true);
     }
   }
-  async function loadEvents() {
-    const res = await fetch(
-      `${serverConfig}/tournament-matches/${match.id}/events`
-    );
-    const data = await res.json().catch(() => []);
-    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-    setEvents(Array.isArray(data) ? data : []);
-    const { s1, s2 } = calcScoreFromEvents(Array.isArray(data) ? data : []);
-    setScore1(s1);
-    setScore2(s2);
-    onScoreChanged?.(match.id, { team1Score: s1, team2Score: s2 });
-  }
-
   const calcScoreFromEvents = (list) => {
     const goals = new Map();
     (list || []).forEach((e) => {
@@ -243,6 +345,18 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
       s2: goals.get(match.team2TTId) || 0,
     };
   };
+  async function loadEvents() {
+    const res = await fetch(
+      `${serverConfig}/tournament-matches/${match.id}/events`
+    );
+    const data = await res.json().catch(() => []);
+    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+    setEvents(Array.isArray(data) ? data : []);
+    const { s1, s2 } = calcScoreFromEvents(Array.isArray(data) ? data : []);
+    setScore1(s1);
+    setScore2(s2);
+    onScoreChanged?.(match.id, { team1Score: s1, team2Score: s2 });
+  }
 
   useEffect(() => {
     (async () => {
@@ -262,59 +376,92 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
       } finally {
         setLoading(false);
       }
-    })(); /* eslint-disable-next-line */
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match.id]);
 
-  /* ---------- Таймер ---------- */
-  useEffect(() => {
-    if (!running) {
-      if (tickRef.current) {
-        clearInterval(tickRef.current);
-        tickRef.current = null;
-      }
-      return;
-    }
-    if (!halfStartTS) setHalfStartTS(Date.now());
-    tickRef.current = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - (halfStartTS ?? Date.now())) / 1000));
-    }, 1000);
-    return () => {
-      if (tickRef.current) {
-        clearInterval(tickRef.current);
-        tickRef.current = null;
-      }
-    };
-  }, [running, halfStartTS]);
-
-  const halfMinuteNow = useMemo(
-    () => clamp(Math.floor(elapsed / 60) + 1, 1, Number(halfMinutes) || 45),
-    [elapsed, halfMinutes]
-  );
-  const mm = fmt2(Math.floor(elapsed / 60));
-  const ss = fmt2(elapsed % 60);
-
+  // ------- таймер: контроллеры -------
   function startPause() {
-    if (running) setRunning(false);
-    else {
-      setHalfStartTS(Date.now() - elapsed * 1000);
-      setRunning(true);
-    }
+    if (!socketRef.current) return;
+    const running = !!clock && !clock.isPaused;
+    const currentHalf = Number(clock?.half || 1);
+    const patch = {
+      matchId: match.id,
+      phase: currentHalf === 1 ? 'H1' : 'H2',
+      half: currentHalf,
+      halfMinutes: halfMinutesFromServer,
+      baseElapsedSec: computeElapsedSec(clock),
+      isPaused: running,
+      addedSec: Number(clock?.addedSec || 0),
+    };
+
+    setClock((prev) => ({
+      ...prev,
+      ...patch,
+      startedAt: running ? null : Date.now(),
+    }));
+
+    socketRef.current.emit('tmatch:clock:set', patch, (srvClock) => {
+      if (srvClock) setClock(srvClock);
+    });
+
+    if (!running && status !== 'LIVE') setMatchStatus('LIVE');
   }
   function finishHalf() {
-    setRunning(false);
-    setElapsed(0);
-    setHalfStartTS(null);
+    if (!socketRef.current) return;
+    const currentHalf = Number(clock?.half || 1);
+    const patch = {
+      matchId: match.id,
+      phase: 'HT',
+      half: currentHalf,
+      halfMinutes: halfMinutesFromServer,
+      baseElapsedSec: 0,
+      isPaused: true,
+      addedSec: 0,
+    };
+    setClock((p) => ({ ...p, ...patch, startedAt: null }));
+    socketRef.current.emit(
+      'tmatch:clock:set',
+      patch,
+      (srvClock) => srvClock && setClock(srvClock)
+    );
   }
   function nextHalf() {
-    finishHalf();
-    setCurrentHalf((h) => clamp(h + 1, 1, halves));
+    if (!socketRef.current) return;
+    const currentHalf = Number(clock?.half || 1);
+    const h = Math.min(currentHalf + 1, Number(halves) || 2);
+    const patch = {
+      matchId: match.id,
+      phase: h === 2 ? 'H2' : 'H1',
+      half: h,
+      halfMinutes: halfMinutesFromServer,
+      baseElapsedSec: 0,
+      isPaused: false,
+      addedSec: 0,
+    };
+    setClock((p) => ({ ...p, ...patch, startedAt: Date.now() }));
+    socketRef.current.emit(
+      'tmatch:clock:set',
+      patch,
+      (srvClock) => srvClock && setClock(srvClock)
+    );
   }
   function prevHalf() {
-    finishHalf();
-    setCurrentHalf((h) => clamp(h - 1, 1, halves));
+    if (!socketRef.current) return;
+    const currentHalf = Number(clock?.half || 1);
+    const h = Math.max(currentHalf - 1, 1);
+    socketRef.current.emit('tmatch:clock:set', {
+      matchId: match.id,
+      phase: h === 2 ? 'H2' : 'H1',
+      half: h,
+      halfMinutes: halfMinutesFromServer,
+      baseElapsedSec: 0,
+      isPaused: false,
+      addedSec: 0,
+    });
   }
 
-  /* ---------- Индексы заявок ---------- */
+  // ------- индексы заявок/утилиты подписей -------
   const rosterIndex1 =
     ttIndex.get(match.team1TTId)?.rosterIndexByPlayerId || new Map();
   const rosterIndex2 =
@@ -326,7 +473,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
   const playerLabel = (p) =>
     p ? `${p.number != null ? `#${p.number} ` : ''}${p.name}` : '';
 
-  /* ---------- Показ полей по типу ---------- */
+  // ------- видимость полей по типу -------
   const showPlayerForType = (t) =>
     [
       'GOAL',
@@ -338,7 +485,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
   const showAssistForType = (t) => t === 'GOAL';
   const showRefForType = (t) => t === 'YELLOW_CARD' || t === 'RED_CARD';
 
-  /* ---------- Отправка события ---------- */
+  // ------- CRUD событий (создание/редакт/удаление) -------
   async function submitEvent(side, form) {
     try {
       setLoading(true);
@@ -346,7 +493,11 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
       if (!form.type) throw new Error('Выберите тип события');
 
       const ttId = side === 1 ? match.team1TTId : match.team2TTId;
-      const minuteToSend = Number(form.minute) || halfMinuteNow;
+      const minuteToSend =
+        form.minute !== '' && form.minute != null
+          ? Number(form.minute)
+          : getHalfMinuteNow(clock, halfMinutesFromServer);
+      const currentHalf = Number(clock?.half || 1);
 
       const rIndex = side === 1 ? rosterIndex1 : rosterIndex2;
       const rosterItemId = form.playerId
@@ -392,7 +543,6 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
     }
   }
 
-  /* ---------- Редактирование события ---------- */
   function startEditEvent(e) {
     const pMain = e?.rosterItem?.player;
     const pAst = e?.assistRosterItem?.player;
@@ -491,13 +641,12 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
     }
   }
 
-  /* ---------- Завершение матча ---------- */
+  // ------- завершение матча -------
   async function finishMatch() {
     try {
       if (!window.confirm('Завершить матч и пересчитать пару?')) return;
       setLoading(true);
       setErr('');
-      setRunning(false);
       const res = await fetch(
         `${serverConfig}/tournament-matches/${match.id}/finish`,
         { method: 'POST' }
@@ -505,6 +654,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
       setStatus('FINISHED');
+      onStatusChanged?.(match.id, 'FINISHED');
     } catch (e) {
       console.error(e);
       setErr(e.message || 'Не удалось завершить матч');
@@ -513,7 +663,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
     }
   }
 
-  /* ---------- MVP ---------- */
+  // ------- MVP -------
   const mvpStats = useMemo(() => {
     const map = new Map();
     const inc = (pid, key, ttId) => {
@@ -604,183 +754,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
   ]);
   const [showMvp, setShowMvp] = useState(false);
 
-  /* ---------- Разметка модалки ---------- */
-  const SidePanel = ({ side }) => {
-    const isHome = side === 1;
-    const ttId = isHome ? match.team1TTId : match.team2TTId;
-    const teamTitle = ttTitle(ttId);
-
-    const players = (isHome ? lineup1 : lineup2)?.length
-      ? isHome
-        ? lineup1
-        : lineup2
-      : (ttIndex.get(ttId)?.roster || []).map((r) => r.player);
-
-    const form = isHome ? evt1 : evt2;
-    const setForm = isHome ? setEvt1 : setEvt2;
-
-    const showPlayer = showPlayerForType(form.type);
-    const showAssist = showAssistForType(form.type);
-    const showRef = showRefForType(form.type);
-
-    return (
-      <div
-        className={`event-panel ${
-          isHome ? 'event-panel--home' : 'event-panel--away'
-        }`}
-      >
-        <div className="event-panel__team">
-          {teamTitle}
-          {lineupFallback && (
-            <span className="muted fallback-note">
-              (состав на матч не опубликован)
-            </span>
-          )}
-        </div>
-
-        <div className="event-types">
-          {QUICK_TYPES.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setForm((s) => ({ ...s, type: t.key }))}
-              className={`event-type ${form.type === t.key ? 'is-active' : ''}`}
-            >
-              <span className="event-type__icon" aria-hidden>
-                {t.icon}
-              </span>
-              <span className="event-type__label">{t.label}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="card event-form">
-          {!form.type ? (
-            <div className="event-form__empty">Выберите тип события сверху</div>
-          ) : (
-            <div className="event-form__inner">
-              <div className="form__row">
-                {showPlayer && (
-                  <label className="field">
-                    <span className="field__label">
-                      Игрок
-                      {form.type === 'YELLOW_CARD' || form.type === 'RED_CARD'
-                        ? ' (получил)'
-                        : ''}
-                    </span>
-                    <select
-                      className="input"
-                      value={form.playerId}
-                      onChange={(e) =>
-                        setForm((s) => ({ ...s, playerId: e.target.value }))
-                      }
-                    >
-                      <option value="">—</option>
-                      {players.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.number ? `#${p.number} ` : ''}
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-
-                {showAssist && (
-                  <label className="field">
-                    <span className="field__label">Ассистент</span>
-                    <select
-                      className="input"
-                      value={form.assistPlayerId}
-                      onChange={(e) =>
-                        setForm((s) => ({
-                          ...s,
-                          assistPlayerId: e.target.value,
-                        }))
-                      }
-                    >
-                      <option value="">—</option>
-                      {players.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.number ? `#${p.number} ` : ''}
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-
-                {showRef && (
-                  <label className="field">
-                    <span className="field__label">Судья</span>
-                    <select
-                      className="input"
-                      value={form.refereeId}
-                      onChange={(e) =>
-                        setForm((s) => ({ ...s, refereeId: e.target.value }))
-                      }
-                    >
-                      <option value="">—</option>
-                      {referees.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </div>
-
-              <div className="form__row">
-                <label className="field field--minute">
-                  <span className="field__label">Минута</span>
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    max={Number(halfMinutes) || 45}
-                    value={form.minute || halfMinuteNow}
-                    onChange={(e) =>
-                      setForm((s) => ({ ...s, minute: e.target.value }))
-                    }
-                  />
-                </label>
-
-                <label className="field field--grow">
-                  <span className="field__label">Комментарий (опц.)</span>
-                  <input
-                    className="input"
-                    value={form.description}
-                    onChange={(e) =>
-                      setForm((s) => ({ ...s, description: e.target.value }))
-                    }
-                    placeholder="например: удар в дальний"
-                  />
-                </label>
-
-                <div className="form__actions event-form__actions">
-                  <button
-                    className="btn"
-                    disabled={
-                      loading ||
-                      !form.type ||
-                      (showPlayer && !form.playerId) ||
-                      (showRef && !form.refereeId)
-                    }
-                    onClick={() => submitEvent(side, form)}
-                  >
-                    Записать событие
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  /* ---------- Протокол DOCX ---------- */
+  // ------- DOCX -------
   async function downloadReportDocx() {
     try {
       setLoading(true);
@@ -799,7 +773,6 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
         BorderStyle,
       } = docx;
 
-      const ttTitle = (ttId) => ttIndex.get(ttId)?.team?.title || `#${ttId}`;
       const t1 = ttTitle(match.team1TTId);
       const t2 = ttTitle(match.team2TTId);
 
@@ -958,6 +931,250 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
     }
   }
 
+  // ------- мини-компонент часов (обновляется сам раз в сек) -------
+  const ClockHud = React.memo(function ClockHud({
+    clock,
+    halves,
+    halfMinutesFromServer,
+    onStartPause,
+    onFinishHalf,
+    onPrevHalf,
+    onNextHalf,
+  }) {
+    const running = !!clock && !clock.isPaused;
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+      if (!running) return;
+      const id = setInterval(() => setTick((t) => t + 1), 1000);
+      return () => clearInterval(id);
+    }, [running, clock?.startedAt]);
+
+    const elapsed = computeElapsedSec(clock);
+    const mm = fmt2(Math.floor(elapsed / 60));
+    const ss = fmt2(elapsed % 60);
+    const currentHalf = Number(clock?.half || 1);
+
+    return (
+      <>
+        <div className="scoreboard__top">
+          <div>
+            Время:{' '}
+            <b>
+              {mm}:{ss}
+            </b>
+          </div>
+          <div>
+            Тайм: <b>{currentHalf}</b> / {halves}
+          </div>
+        </div>
+        <div className="scoreboard__controls">
+          <button className="bt" onClick={onStartPause}>
+            {running ? 'Пауза' : 'Старт'}
+          </button>
+          <button className="btn" onClick={onFinishHalf}>
+            Завершить тайм
+          </button>
+          <div className="scoreboard__nav">
+            <button
+              className="bt"
+              onClick={onPrevHalf}
+              disabled={currentHalf <= 1}
+            >
+              ← Пред. тайм
+            </button>
+            <button
+              className="bt"
+              onClick={onNextHalf}
+              disabled={currentHalf >= halves}
+            >
+              След. тайм →
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  });
+
+  // ================== ВАЖНО: панель событий вынесена ВЫШЕ return ==================
+  const LiveSidePanel = React.memo(function LiveSidePanel({ side }) {
+    const isHome = side === 1;
+    const ttId = isHome ? match.team1TTId : match.team2TTId;
+    const teamTitle = ttTitle(ttId);
+
+    const players = (isHome ? lineup1 : lineup2)?.length
+      ? isHome
+        ? lineup1
+        : lineup2
+      : (ttIndex.get(ttId)?.roster || []).map((r) => r.player);
+
+    const form = isHome ? evt1 : evt2;
+    const setForm = isHome ? setEvt1 : setEvt2;
+
+    const showPlayer = showPlayerForType(form.type);
+    const showAssist = showAssistForType(form.type);
+    const showRef = showRefForType(form.type);
+
+    return (
+      <div
+        className={`event-panel ${
+          isHome ? 'event-panel--home' : 'event-panel--away'
+        }`}
+      >
+        <div className="event-panel__team">
+          {teamTitle}
+          {lineupFallback && (
+            <span className="muted fallback-note">
+              (состав на матч не опубликован)
+            </span>
+          )}
+        </div>
+
+        <div className="event-types">
+          {QUICK_TYPES.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setForm((s) => ({ ...s, type: t.key }))}
+              className={`event-type ${form.type === t.key ? 'is-active' : ''}`}
+            >
+              <span className="event-type__icon" aria-hidden>
+                {t.icon}
+              </span>
+              <span className="event-type__label">{t.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="card event-form">
+          {!form.type ? (
+            <div className="event-form__empty">Выберите тип события сверху</div>
+          ) : (
+            <div className="event-form__inner">
+              <div className="form__row">
+                {showPlayer && (
+                  <label className="field">
+                    <span className="field__label">
+                      Игрок
+                      {form.type === 'YELLOW_CARD' || form.type === 'RED_CARD'
+                        ? ' (получил)'
+                        : ''}
+                    </span>
+                    <select
+                      className="input"
+                      value={form.playerId}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, playerId: e.target.value }))
+                      }
+                    >
+                      <option value="">—</option>
+                      {players.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.number ? `#${p.number} ` : ''}
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                {showAssist && (
+                  <label className="field">
+                    <span className="field__label">Ассистент</span>
+                    <select
+                      className="input"
+                      value={form.assistPlayerId}
+                      onChange={(e) =>
+                        setForm((s) => ({
+                          ...s,
+                          assistPlayerId: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">—</option>
+                      {players.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.number ? `#${p.number} ` : ''}
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                {showRef && (
+                  <label className="field">
+                    <span className="field__label">Судья</span>
+                    <select
+                      className="input"
+                      value={form.refereeId}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, refereeId: e.target.value }))
+                      }
+                    >
+                      <option value="">—</option>
+                      {referees.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+
+              <div className="form__row">
+                <label className="field field--minute">
+                  <span className="field__label">Минута</span>
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    max={Number(halfMinutes) || 45}
+                    value={form.minute}
+                    placeholder={String(
+                      getHalfMinuteNow(clock, halfMinutesFromServer)
+                    )}
+                    onChange={(e) =>
+                      setForm((s) => ({ ...s, minute: e.target.value }))
+                    }
+                  />
+                </label>
+
+                <label className="field field--grow">
+                  <span className="field__label">Комментарий (опц.)</span>
+                  <input
+                    className="input"
+                    value={form.description}
+                    onChange={(e) =>
+                      setForm((s) => ({ ...s, description: e.target.value }))
+                    }
+                    placeholder="например: удар в дальний"
+                  />
+                </label>
+
+                <div className="form__actions event-form__actions">
+                  <button
+                    className="btn"
+                    disabled={
+                      loading ||
+                      !form.type ||
+                      (showPlayer && !form.playerId) ||
+                      (showRef && !form.refereeId)
+                    }
+                    onClick={() => submitEvent(side, form)}
+                  >
+                    Записать событие
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  });
+  // ================== /панель событий ==================
+
   return (
     <div className="modal live-modal">
       <div className="modal__backdrop" />
@@ -974,8 +1191,10 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
           {loading && <div className="alert">Загрузка…</div>}
 
           <div className="live-threecol">
-            <SidePanel side={1} />
+            {/* Левая панель */}
+            <LiveSidePanel side={1} />
 
+            {/* Центр: табло/таймер */}
             <section className="card scoreboard">
               <div className="scoreboard__teams">
                 <div className="scoreboard__team scoreboard__team--left">
@@ -992,42 +1211,15 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
                 {score2}
               </div>
 
-              <div className="scoreboard__top">
-                <div>
-                  Время:{' '}
-                  <b>
-                    {mm}:{ss}
-                  </b>
-                </div>
-                <div>
-                  Тайм: <b>{currentHalf}</b> / {halves}
-                </div>
-              </div>
-
-              <div className="scoreboard__controls">
-                <button className="bt" onClick={startPause}>
-                  {running ? 'Пауза' : 'Старт'}
-                </button>
-                <button className="btn" onClick={finishHalf}>
-                  Завершить тайм
-                </button>
-                <div className="scoreboard__nav">
-                  <button
-                    className="bt"
-                    onClick={prevHalf}
-                    disabled={currentHalf <= 1}
-                  >
-                    ← Пред. тайм
-                  </button>
-                  <button
-                    className="bt"
-                    onClick={nextHalf}
-                    disabled={currentHalf >= halves}
-                  >
-                    След. тайм →
-                  </button>
-                </div>
-              </div>
+              <ClockHud
+                clock={clock}
+                halves={halves}
+                halfMinutesFromServer={halfMinutesFromServer}
+                onStartPause={startPause}
+                onFinishHalf={finishHalf}
+                onPrevHalf={prevHalf}
+                onNextHalf={nextHalf}
+              />
 
               {status === 'FINISHED' && (
                 <div className="scoreboard__downloads">
@@ -1038,9 +1230,11 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
               )}
             </section>
 
-            <SidePanel side={2} />
+            {/* Правая панель */}
+            <LiveSidePanel side={2} />
           </div>
 
+          {/* Лента событий */}
           <section className="card timeline">
             <div className="timeline__hdr">
               <h4 className="timeline__title">Хронология событий</h4>
@@ -1122,13 +1316,13 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
                             </div>
                             <div className="table__actions" style={{ gap: 8 }}>
                               <button
-                                className="btn "
+                                className="btn"
                                 onClick={() => startEditEvent(e)}
                               >
                                 Изм.
                               </button>
                               <button
-                                className="btn  "
+                                className="btn"
                                 onClick={() => deleteEvent(e.id)}
                               >
                                 Удалить
@@ -1268,7 +1462,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
                             </div>
                             <div className="table__actions" style={{ gap: 8 }}>
                               <button
-                                className="btn "
+                                className="btn"
                                 onClick={saveEditEvent}
                                 disabled={
                                   loading ||
@@ -1285,7 +1479,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
                                 Отмена
                               </button>
                               <button
-                                className="btn  "
+                                className="btn"
                                 onClick={() => deleteEvent(e.id)}
                               >
                                 Удалить
@@ -1358,7 +1552,7 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
         <div className="modal__footer">
           {status !== 'FINISHED' ? (
             <>
-              <button className="btn " onClick={finishMatch} disabled={loading}>
+              <button className="btn" onClick={finishMatch} disabled={loading}>
                 Завершить матч
               </button>
               <div className="spacer" />
@@ -1386,15 +1580,15 @@ function LiveTMatchModal({ match, ttIndex, onClose, onScoreChanged }) {
   );
 }
 
-// === Добавь это выше export default function TournamentMatchesTab(...) ===
+// === Модалка редактирования матча ===
 function EditMatchModal({
-  match, // { id, date, status, team1TTId, team2TTId, team1Score, team2Score, stadiumId, roundId, tieId }
-  ttRows, // список TT с team.title
+  match,
+  ttRows,
   stadiums,
   rounds,
   ties,
   onClose,
-  onSaved, // (updatedMatch) => void
+  onSaved,
 }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
@@ -1413,7 +1607,7 @@ function EditMatchModal({
     stadiumId: match.stadiumId ? String(match.stadiumId) : '',
     roundId: match.roundId ? String(match.roundId) : '',
     tieId: match.tieId ? String(match.tieId) : '',
-    legNumber: match.legNumber ?? '', // если используете “игра №”
+    legNumber: match.legNumber ?? '',
     team1Score: match.team1Score ?? 0,
     team2Score: match.team2Score ?? 0,
   });
@@ -1448,7 +1642,6 @@ function EditMatchModal({
       if (form.team1TTId === form.team2TTId)
         throw new Error('Команды не должны совпадать');
 
-      // Нужен roundId — либо выбран явно, либо из tieId
       let roundId = form.roundId ? Number(form.roundId) : undefined;
       if (!roundId && form.tieId) {
         const t = tieById.get(Number(form.tieId));
@@ -1468,7 +1661,6 @@ function EditMatchModal({
         team2Score: Number(form.team2Score) || 0,
       };
 
-      // ВАЖНО: нужен бэкенд-роут PUT /tournament-matches/:id
       const res = await fetch(
         `${serverConfig}/tournament-matches/${match.id}`,
         {
@@ -1681,12 +1873,14 @@ function EditMatchModal({
 
 /* ===================== Вкладка: Матчи турнира ===================== */
 export default function TournamentMatchesTab({ tournamentId }) {
+  const navigate = useNavigate();
+
   const [matches, setMatches] = useState([]);
   const [ttRows, setTtRows] = useState([]);
   const [ttIndex, setTtIndex] = useState(new Map());
   const [stadiums, setStadiums] = useState([]);
-  const [rounds, setRounds] = useState([]); // ← добавлено
-  const [ties, setTies] = useState([]); // ← добавлено
+  const [rounds, setRounds] = useState([]);
+  const [ties, setTies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [editMatch, setEditMatch] = useState(null);
@@ -1695,7 +1889,6 @@ export default function TournamentMatchesTab({ tournamentId }) {
   const [showCalModal, setShowCalModal] = useState(false);
   const [posterMode, setPosterMode] = useState('cal'); // 'cal' | 'res' | 'top' | 'tbl'
   const [calDate, setCalDate] = useState(''); // YYYY-MM-DD
-  const [topRound, setTopRound] = useState(''); // опц. фильтр (не обязателен)
   const posterRef = useRef(null);
   const [posterData, setPosterData] = useState(null);
 
@@ -1703,14 +1896,20 @@ export default function TournamentMatchesTab({ tournamentId }) {
   const ttTitle = (ttId) => ttTeam(ttId)?.title || `TT#${ttId}`;
   const ttLogo = (ttId) => teamLogo(ttTeam(ttId));
 
+  const patchMatchStatus = (matchId, nextStatus) => {
+    setMatches((list) =>
+      list.map((m) => (m.id === matchId ? { ...m, status: nextStatus } : m))
+    );
+  };
+
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({
     date: '',
     team1TTId: '',
     team2TTId: '',
     stadiumId: '',
-    roundId: '', // ← добавлено
-    tieId: '', // ← добавлено
+    roundId: '',
+    tieId: '',
   });
   const resetForm = () =>
     setForm({
@@ -1721,6 +1920,8 @@ export default function TournamentMatchesTab({ tournamentId }) {
       roundId: '',
       tieId: '',
     });
+
+  const [sp, setSp] = useSearchParams();
 
   function buildCalendarPosterData(dateStr) {
     if (!dateStr) return null;
@@ -1845,7 +2046,6 @@ export default function TournamentMatchesTab({ tournamentId }) {
     const finished = matches.filter((m) => m.status === 'FINISHED');
     if (!finished.length) return alert('Нет завершённых матчей.');
 
-    // Собираем события и участников поматчево
     const getJSON = async (url) => {
       const r = await fetch(url);
       const d = await r.json().catch(() => ({}));
@@ -1875,15 +2075,12 @@ export default function TournamentMatchesTab({ tournamentId }) {
       )
     );
 
-    // Агрегация
-    const goals = new Map(); // playerId -> count
-    const games = new Map(); // playerId -> Set<matchId>
-    const pinfo = new Map(); // playerId -> { name, teamTitle, teamLogo, photo }
-
+    const goals = new Map();
+    const games = new Map();
+    const pinfo = new Map();
     const mergePinfo = (pid, patch) =>
       pinfo.set(pid, { ...(pinfo.get(pid) || {}), ...patch });
 
-    // из событий
     for (const { id: mid, events } of eventsByMatch) {
       for (const e of events) {
         if (e.type !== 'GOAL' && e.type !== 'PENALTY_SCORED') continue;
@@ -1902,7 +2099,6 @@ export default function TournamentMatchesTab({ tournamentId }) {
       }
     }
 
-    // из участников — считаем игры
     for (const { id: mid, parts } of partsByMatch) {
       for (const pm of parts) {
         const pl = pm?.tournamentTeamPlayer?.player;
@@ -1913,12 +2109,10 @@ export default function TournamentMatchesTab({ tournamentId }) {
 
         mergePinfo(pid, {
           name: pl?.name || `#${pid}`,
-          // teamTitleLogo можно добить по tournamentTeamId, если он есть в pm
         });
       }
     }
 
-    // fallback: если нет участников — игры = кол-во матчей, где забивал
     if (![...games.values()].length) {
       for (const [pid] of goals) {
         const s = new Set();
@@ -1950,12 +2144,11 @@ export default function TournamentMatchesTab({ tournamentId }) {
     setPosterMode('top');
     setPosterData({
       season: new Date(finished[0].date || Date.now()).getFullYear(),
-      roundLabel: '', // при желании можно подставлять название стадии
+      roundLabel: '',
       rows,
     });
 
     await new Promise((r) => setTimeout(r, 0));
-    // дождёмся картинок
     await new Promise((resolve) => {
       const imgs = posterRef.current?.querySelectorAll('img') || [];
       if (!imgs.length) return resolve();
@@ -1999,7 +2192,6 @@ export default function TournamentMatchesTab({ tournamentId }) {
     });
 
     const byId = new Map([...ttIndex.keys()].map((id) => [id, init(id)]));
-
     const finished = (matchesAll || []).filter((m) => m.status === 'FINISHED');
 
     for (const m of finished) {
@@ -2053,7 +2245,6 @@ export default function TournamentMatchesTab({ tournamentId }) {
     setPosterData({ season: new Date().getFullYear(), rows });
 
     await new Promise((r) => setTimeout(r, 0));
-    // дождаться логотипов
     await new Promise((resolve) => {
       const imgs = posterRef.current?.querySelectorAll('img') || [];
       if (!imgs.length) return resolve();
@@ -2205,7 +2396,7 @@ export default function TournamentMatchesTab({ tournamentId }) {
           : new Date().toISOString(),
         status: 'SCHEDULED',
         stadiumId: form.stadiumId ? Number(form.stadiumId) : null,
-        roundId, // << ключевое
+        roundId,
         tieId: form.tieId ? Number(form.tieId) : undefined,
       };
 
@@ -2250,6 +2441,13 @@ export default function TournamentMatchesTab({ tournamentId }) {
   const stageLabel = (r = {}) =>
     `${r.stage || ''}${r.number ? ` #${r.number}` : ''}`;
 
+  useEffect(() => {
+    const liveId = Number(sp.get('liveMatchId') || '');
+    if (!liveId || !matches.length) return;
+    const m = matches.find((x) => x.id === liveId);
+    if (m) setLiveMatch({ ...m, tournamentId });
+  }, [matches, sp, tournamentId]);
+
   return (
     <div className="grid onecol">
       <div
@@ -2284,8 +2482,9 @@ export default function TournamentMatchesTab({ tournamentId }) {
         <button
           className="btn"
           onClick={() => {
-            const d = matches.find((m) => m.status === 'FINISHED')?.date
-              ? new Date(matches.find((m) => m.status === 'FINISHED').date)
+            const fm = matches.find((m) => m.status === 'FINISHED');
+            const d = fm?.date
+              ? new Date(fm.date)
               : matches[0]?.date
               ? new Date(matches[0].date)
               : new Date();
@@ -2565,7 +2764,12 @@ export default function TournamentMatchesTab({ tournamentId }) {
                 <div className="table__actions">
                   <button
                     className="btn btn--sm1"
-                    onClick={() => setLiveMatch({ ...m, tournamentId })}
+                    onClick={() => {
+                      setLiveMatch({ ...m, tournamentId });
+                      const next = new URLSearchParams(sp);
+                      next.set('liveMatchId', String(m.id));
+                      setSp(next, { replace: true });
+                    }}
                   >
                     Провести матч
                   </button>
@@ -2575,6 +2779,14 @@ export default function TournamentMatchesTab({ tournamentId }) {
                     style={{ marginLeft: 6 }}
                   >
                     Редактировать
+                  </button>
+                  <button
+                    className="btn btn--sm"
+                    onClick={() =>
+                      navigate(`/admin/tournaments/live?matchId=${m.id}`)
+                    }
+                  >
+                    Монитор
                   </button>
                   <button
                     className="btn btn--sm "
@@ -2605,13 +2817,18 @@ export default function TournamentMatchesTab({ tournamentId }) {
         posterRef={posterRef}
         posterData={posterMode === 'tbl' ? posterData : null}
       />
-
       {liveMatch && (
         <LiveTMatchModal
           match={liveMatch}
           ttIndex={ttIndex}
-          onClose={() => setLiveMatch(null)}
-          onScoreChanged={(id, score) => patchMatchScore(id, score)}
+          onClose={() => {
+            setLiveMatch(null);
+            const next = new URLSearchParams(sp);
+            next.delete('liveMatchId');
+            setSp(next, { replace: true });
+          }}
+          onScoreChanged={(id, sc) => patchMatchScore(id, sc)}
+          onStatusChanged={(id, st) => patchMatchStatus(id, st)}
         />
       )}
 

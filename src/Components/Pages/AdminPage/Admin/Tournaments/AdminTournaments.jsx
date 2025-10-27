@@ -357,7 +357,7 @@ export default function AdminTournaments() {
 
       <section className="card">
         <div className="table">
-          <div className="table__head">
+          <div className="table__headTour">
             <div>ID</div>
             <div>Название</div>
             <div>Сезон</div>
@@ -372,7 +372,7 @@ export default function AdminTournaments() {
             )}
             {!loading &&
               rows.map((r) => (
-                <div className="table__row" key={r.id}>
+                <div className="table__rowTour" key={r.id}>
                   <div>#{r.id}</div>
                   <div className="cell-strong">{r.title}</div>
                   <div>{r.season || '—'}</div>

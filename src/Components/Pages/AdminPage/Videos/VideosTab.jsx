@@ -475,7 +475,7 @@ export default function VideosTab() {
 
       <section className="card">
         <div className="table">
-          <div className="table__head">
+          <div className="table__headImg">
             <div style={{ width: 70 }}>ID</div>
             <div style={{ width: 180 }}>Дата</div>
             <div style={{ minWidth: 260 }}>Название / Привязки</div>
@@ -489,7 +489,7 @@ export default function VideosTab() {
             )}
             {!loading &&
               rows.map((r) => (
-                <div className="table__row" key={r.id}>
+                <div className="table__rowImg" key={r.id}>
                   <div>#{r.id}</div>
                   <div>{r.date ? dtLoc(r.date) : '—'}</div>
                   <div className="cell-strong">

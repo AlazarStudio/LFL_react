@@ -47,7 +47,11 @@ export default function AdminTeamDetails() {
     city: '',
     logo: [],
     images: [],
+    games: 0,
+    wins: 0,
+    goals: 0,
   });
+
   const logoRef = useRef(null);
   const imgsRef = useRef(null);
 
@@ -80,6 +84,27 @@ export default function AdminTeamDetails() {
     if (!urls.length) throw new Error('Сервер не вернул пути к файлам');
     return urls;
   };
+
+  const MATCHES_API = `${serverConfig}/matches`;
+  const EVENTS_API = `${serverConfig}/matchEvents`;
+
+  const GOAL_TYPES = new Set(['GOAL', 'PENALTY_GOAL', 'OWN_GOAL']); // под свои enum'ы
+  const CARD_TYPES = new Set(['YELLOW_CARD', 'RED_CARD']);
+
+  // helper: счёт из событий
+  function computeScore(events, t1Id, t2Id) {
+    let s1 = 0,
+      s2 = 0;
+    for (const ev of events) {
+      if (!GOAL_TYPES.has(ev.type)) continue;
+      const isOwn = ev.type === 'OWN_GOAL';
+      const toTeam1 = isOwn ? ev.teamId === t2Id : ev.teamId === t1Id;
+      const toTeam2 = isOwn ? ev.teamId === t1Id : ev.teamId === t2Id;
+      if (toTeam1) s1++;
+      if (toTeam2) s2++;
+    }
+    return { team1Score: s1, team2Score: s2 };
+  }
 
   const loadTeam = async () => {
     const res = await fetch(`${TEAMS_API}/${teamId}`);
@@ -176,6 +201,9 @@ export default function AdminTeamDetails() {
           city: tForm.city.trim(),
           logo: tForm.logo,
           images: tForm.images,
+          games: Number(tForm.games) || 0,
+          wins: Number(tForm.wins) || 0,
+          goals: Number(tForm.goals) || 0,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -209,6 +237,9 @@ export default function AdminTeamDetails() {
       number: p.number ?? '',
       birthDate: p.birthDate ? String(p.birthDate).slice(0, 10) : '',
       images: Array.isArray(p.images) ? p.images : [],
+      games: Number(t.games ?? 0),
+      wins: Number(t.wins ?? 0),
+      goals: Number(t.goals ?? 0),
     });
   };
 
@@ -282,9 +313,13 @@ export default function AdminTeamDetails() {
         <button className="btn btn--ghost" onClick={() => nav('/admin/teams')}>
           ← Назад
         </button>
+
         <h1 className="teams__title">
           Команда #{teamId}
           {team?.title ? ` — ${team.title}` : ''}
+          {`  ·  И:${team?.games ?? 0}  В:${team?.wins ?? 0}  Г:${
+            team?.goals ?? 0
+          }`}
         </h1>
       </header>
 
@@ -303,6 +338,12 @@ export default function AdminTeamDetails() {
           onClick={() => setTab('players')}
         >
           Игроки
+        </button>
+        <button
+          className={`tab ${tab === 'matches' ? 'active' : ''}`}
+          onClick={() => setTab('matches')}
+        >
+          Матчи
         </button>
       </div>
 
@@ -328,6 +369,53 @@ export default function AdminTeamDetails() {
                   value={tForm.city}
                   onChange={(e) =>
                     setTForm((s) => ({ ...s, city: e.target.value }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="form__row">
+              <label className="field">
+                <span className="field__label">Игры</span>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  value={tForm.games}
+                  onChange={(e) =>
+                    setTForm((s) => ({
+                      ...s,
+                      games: Number(e.target.value || 0),
+                    }))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Победы</span>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  value={tForm.wins}
+                  onChange={(e) =>
+                    setTForm((s) => ({
+                      ...s,
+                      wins: Number(e.target.value || 0),
+                    }))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Голы</span>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  value={tForm.goals}
+                  onChange={(e) =>
+                    setTForm((s) => ({
+                      ...s,
+                      goals: Number(e.target.value || 0),
+                    }))
                   }
                 />
               </label>
