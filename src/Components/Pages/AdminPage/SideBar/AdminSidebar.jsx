@@ -82,7 +82,14 @@ export default function AdminSidebar() {
         >
           Фото
         </NavLink>
-        <NavLink to="/admin/tournaments/live">Live монитор</NavLink>
+        <NavLink
+          to="/admin/tournaments/live"
+          className={({ isActive }) =>
+            `sidebar__link ${isActive ? 'is-active' : ''}`
+          }
+        >
+          Live монитор
+        </NavLink>
       </nav>
       <div className="sidebar__footer">v1.0</div>
     </aside>

@@ -33,17 +33,23 @@ const dtRu = (v) => {
 };
 
 export default function LiveMatchMonitor() {
+  const [sp, setSP] = useSearchParams();
+
+  const initialMatchId =
+    Number(sp.get('matchId') || localStorage.getItem('live:matchId') || 0) || 0;
+  const initialTournamentId =
+    sp.get('tId') || localStorage.getItem('live:tournamentId') || '';
+
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
-  const [sp] = useSearchParams();
-  const initialMatchId = Number(sp.get('matchId') || '');
-
   // выбор турнира/матча
   const [tournaments, setTournaments] = useState([]);
-  const [tournamentId, setTournamentId] = useState('');
+  const [tournamentId, setTournamentId] = useState(String(initialTournamentId));
   const [matches, setMatches] = useState([]);
-  const [matchId, setMatchId] = useState('');
+  const [matchId, setMatchId] = useState(
+    initialMatchId ? String(initialMatchId) : ''
+  );
   const [directId, setDirectId] = useState('');
 
   // состояние матча
@@ -68,16 +74,32 @@ export default function LiveMatchMonitor() {
   // ===== socket =====
   function ensureSocket() {
     if (socketRef.current) return socketRef.current;
-    const s = io(SOCKET_URL, {
+
+    const s = io('https://backend.mlf09.ru', {
       path: '/socket.io',
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'],
+      withCredentials: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelayMax: 5000,
     });
+
     socketRef.current = s;
 
-    // часы
-    s.on('tmatch:clock', (st) => setClock(st));
+    s.on('connect', () => {
+      console.log('✅ socket connected', s.id);
+      if (currentRoomRef.current) s.emit('room:join', currentRoomRef.current);
+    });
+    s.on('connect_error', (e) => console.log('❌ socket error', e?.message));
 
-    // матч: частичные/статусы/счет
+    s.onAny((event, ...args) => {
+      if (!String(event).startsWith('pong')) {
+        console.log('[live] ANY:', event, args?.[0]);
+      }
+    });
+
+    // часы/ивенты/судьи
+    s.on('tmatch:clock', (st) => setClock(st));
     s.on('tmatch:update', (patch) => {
       setMatch((m) =>
         m && patch && patch.id === m.id ? { ...m, ...patch } : m
@@ -91,25 +113,22 @@ export default function LiveMatchMonitor() {
         m && m.id === matchId ? { ...m, team1Score, team2Score } : m
       );
     });
-
-    // события
     const sortEvents = (a, b) =>
       (a.half || 0) - (b.half || 0) ||
       (a.minute || 0) - (b.minute || 0) ||
       (a.id || 0) - (b.id || 0);
-    s.on('tevent:created', (e) => {
-      setEvents((arr) => [...arr, e].sort(sortEvents));
-    });
-    s.on('tevent:updated', (e) => {
+    s.on('tevent:created', (e) =>
+      setEvents((arr) => [...arr, e].sort(sortEvents))
+    );
+    s.on('tevent:updated', (e) =>
       setEvents((arr) =>
         arr.map((x) => (x.id === e.id ? e : x)).sort(sortEvents)
-      );
-    });
-    s.on('tevent:deleted', ({ id }) => {
-      setEvents((arr) => arr.filter((x) => x.id !== id));
-    });
+      )
+    );
+    s.on('tevent:deleted', ({ id }) =>
+      setEvents((arr) => arr.filter((x) => x.id !== id))
+    );
 
-    // участники/судьи
     s.on('tparticipants:updated', (rows) => {
       if (Array.isArray(rows)) setParticipants(rows);
     });
@@ -121,30 +140,29 @@ export default function LiveMatchMonitor() {
   }
 
   function joinRoom(room) {
-    if (!socketRef.current || !room) return;
+    if (!room) return;
+    const s = ensureSocket();
     if (currentRoomRef.current && currentRoomRef.current !== room) {
-      socketRef.current.emit('room:leave', currentRoomRef.current);
+      s.emit('room:leave', currentRoomRef.current);
     }
-    socketRef.current.emit('room:join', room);
+    s.emit('room:join', room);
     currentRoomRef.current = room;
   }
 
   function disconnectSocket() {
     try {
-      if (socketRef.current) {
-        if (currentRoomRef.current) {
-          socketRef.current.emit('room:leave', currentRoomRef.current);
-        }
-        socketRef.current.close();
+      const s = socketRef.current;
+      if (s) {
+        if (currentRoomRef.current)
+          s.emit('room:leave', currentRoomRef.current);
+        s.close();
       }
     } catch {}
     currentRoomRef.current = null;
     socketRef.current = null;
   }
 
-  useEffect(() => {
-    return () => disconnectSocket();
-  }, []);
+  useEffect(() => () => disconnectSocket(), []);
 
   // ===== вычисление отображаемого времени =====
   const display = useMemo(() => {
@@ -247,7 +265,17 @@ export default function LiveMatchMonitor() {
         setLoading(false);
       }
     })();
-  }, []);
+    // синхронизируем URL с восстановленными значениями
+    setSP(
+      (prev) => {
+        const q = new URLSearchParams(prev);
+        if (initialTournamentId) q.set('tId', String(initialTournamentId));
+        if (initialMatchId) q.set('matchId', String(initialMatchId));
+        return q;
+      },
+      { replace: true }
+    );
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!tournamentId) return;
@@ -265,6 +293,15 @@ export default function LiveMatchMonitor() {
     })();
   }, [tournamentId]);
 
+  // автозагрузка матча при старте, если есть сохранённый
+  useEffect(() => {
+    if (initialMatchId) {
+      setMatchId(String(initialMatchId));
+      selectMatch(Number(initialMatchId));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // выбор матча => загрузка + подписка на комнату + запрос часов
   async function selectMatch(id) {
     if (!id) return;
@@ -274,7 +311,18 @@ export default function LiveMatchMonitor() {
       await loadMatchFull(id);
       const s = ensureSocket();
       joinRoom(`tmatch:${id}`);
-      s.emit('tmatch:clock:get', { matchId: id }); // запрос снапшота состояния часов
+      s.emit('tmatch:clock:get', { matchId: id });
+
+      // сохранить выбор
+      setSP((prev) => {
+        const q = new URLSearchParams(prev);
+        q.set('matchId', String(id));
+        if (tournamentId) q.set('tId', String(tournamentId));
+        return q;
+      });
+      localStorage.setItem('live:matchId', String(id));
+      if (tournamentId)
+        localStorage.setItem('live:tournamentId', String(tournamentId));
     } catch (e) {
       console.error(e);
       setErr(`Не удалось загрузить матч #${id}`);
@@ -282,14 +330,6 @@ export default function LiveMatchMonitor() {
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    if (initialMatchId) {
-      setMatchId(String(initialMatchId));
-      selectMatch(Number(initialMatchId));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMatchId]);
 
   const sortEvents = (a, b) =>
     (a.half || 0) - (b.half || 0) ||
@@ -353,12 +393,22 @@ export default function LiveMatchMonitor() {
                 className="input"
                 value={tournamentId}
                 onChange={(e) => {
-                  setTournamentId(e.target.value);
+                  const tid = e.target.value;
+                  setTournamentId(tid);
                   setMatchId('');
                   setMatches([]);
                   setMatch(null);
                   setEvents([]);
                   setParticipants([]);
+                  localStorage.setItem('live:tournamentId', tid || '');
+                  localStorage.removeItem('live:matchId');
+                  setSP((prev) => {
+                    const q = new URLSearchParams(prev);
+                    if (tid) q.set('tId', tid);
+                    else q.delete('tId');
+                    q.delete('matchId');
+                    return q;
+                  });
                 }}
               >
                 <option value="">— выберите —</option>
@@ -377,7 +427,7 @@ export default function LiveMatchMonitor() {
                 value={matchId}
                 onChange={(e) => {
                   const id = Number(e.target.value);
-                  setMatchId(String(id));
+                  setMatchId(String(id || ''));
                   if (id) selectMatch(id);
                 }}
                 disabled={!tournamentId}
@@ -406,7 +456,11 @@ export default function LiveMatchMonitor() {
                 />
                 <button
                   className="btn"
-                  onClick={() => selectMatch(Number(directId))}
+                  onClick={() => {
+                    const id = Number(directId);
+                    if (!id) return;
+                    selectMatch(id);
+                  }}
                 >
                   Открыть
                 </button>
